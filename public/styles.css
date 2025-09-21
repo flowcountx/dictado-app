@@ -1,0 +1,75 @@
+body {
+    font-family: sans-serif;
+    background-color: #f0f2f5;
+    color: #333;
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 0 20px;
+}
+
+h1, h2 {
+    color: #1a2b4d;
+}
+
+.controls button {
+    padding: 10px 15px;
+    font-size: 16px;
+    margin: 5px;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    color: white;
+}
+
+#recordButton { background-color: #d93025; }
+#pauseButton { background-color: #fca130; }
+#stopButton { background-color: #4285f4; }
+button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+#status {
+    margin: 20px 0;
+    font-weight: bold;
+}
+
+#audioPlayer {
+    width: 100%;
+    margin-top: 10px;
+}
+
+#recordingsList {
+    list-style: none;
+    padding: 0;
+}
+
+#recordingsList li {
+    background-color: white;
+    margin-bottom: 10px;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+}
+
+#recordingsList li .actions button,
+#recordingsList li .actions a {
+    margin-right: 10px;
+    padding: 8px 12px;
+    text-decoration: none;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.playBtn { background-color: #34a853; }
+.transcribeBtn { background-color: #9333ea; }
+.downloadLink { background-color: #5f6368; }
+
+.transcription {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #e8f0fe;
+    border-left: 4px solid #4285f4;
+    white-space: pre-wrap; /* Mantiene los saltos de línea */
+}

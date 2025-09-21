@@ -1,0 +1,12 @@
+{
+  "name": "dictado-app",
+  "version": "1.0.0",
+  "description": "Una aplicación para grabar y transcribir audio.",
+  "main": "index.js",
+  "scripts": {
+    "start": "echo 'No start script needed for Vercel'"
+  },
+  "dependencies": {
+    "@deepgram/sdk": "^3.0.0"
+  }
+}

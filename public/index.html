@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF--8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplicación de Dictado</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Grabadora y Transcriptor</h1>
+
+    <div class="controls">
+        <button id="recordButton">Grabar</button>
+        <button id="pauseButton" disabled>Pausar</button>
+        <button id="stopButton" disabled>Detener</button>
+    </div>
+
+    <div id="status">Presiona "Grabar" para empezar</div>
+
+    <audio id="audioPlayer" controls></audio>
+
+    <h2>Grabaciones</h2>
+    <ul id="recordingsList">
+        <!-- Aquí se agregarán las grabaciones dinámicamente -->
+    </ul>
+
+    <script src="script.js"></script>
+</body>
+</html>
