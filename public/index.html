@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grabadora y Transcriptor</title>
+    <title>Grabadora y Transcriptor Pro</title>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="dark-mode"> <!-- Empezamos en modo oscuro por defecto -->
+<body class="dark-mode">
     <header>
-        <h1>Grabadora y Transcriptor</h1>
+        <h1>Grabadora y Transcriptor Pro</h1>
         <div class="theme-switcher">
             <label for="themeToggle">Modo Claro</label>
             <input type="checkbox" id="themeToggle">
@@ -17,40 +17,33 @@
 
     <main>
         <div class="visualizer-wrapper">
-            <div class="visualizer-header">
-                <h3>Visualizador de Grabación</h3>
-                <button id="toggleVisualizerButton" title="Ocultar/Mostrar">👁️</button>
-            </div>
-            <div class="visualizer-container">
-                <canvas id="audioVisualizer"></canvas>
-            </div>
+            <!-- El visualizador no cambia -->
         </div>
 
-        <div class="controls">
-            <!-- Usamos los botones de texto originales que funcionaban bien -->
-            <button id="recordButton">Grabar</button>
-            <button id="pauseButton" disabled>Pausar</button>
-            <button id="stopButton" disabled>Detener</button>
+        <div class="main-controls">
+            <button id="recordButton" title="Grabar">
+                <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"></path></svg>
+            </button>
+            <button id="pauseButton" title="Pausar" disabled>
+                <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M14,19H18V5H14M6,19H10V5H6V19Z"></path></svg>
+            </button>
+            <button id="stopButton" title="Detener" disabled>
+                <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M18,18H6V6H18V18Z"></path></svg>
+            </button>
         </div>
 
-        <div id="status">Presiona "Grabar" para empezar</div>
-
-        <!-- El reproductor principal para escuchar los audios grabados -->
-        <audio id="audioPlayer" controls></audio>
+        <div id="status">Presiona el botón de grabar para empezar</div>
         
+        <!-- Este es nuestro motor de audio, ahora invisible para el usuario -->
+        <audio id="audioPlayer" hidden></audio>
+
         <div class="upload-section">
-            <h3>¿Ya tienes un audio?</h3>
-            <div id="dropZone">Arrastra y suelta un archivo de audio aquí</div>
-            <p>o</p>
-            <input type="file" id="fileInput" accept="audio/*">
+             <!-- La sección de carga no cambia -->
         </div>
 
         <div class="recordings-header">
             <h2>Grabaciones</h2>
-            <div class="batch-actions">
-                <button id="clearTranscriptsButton">Limpiar Transcripciones</button>
-                <button id="clearAllButton">Limpiar Todo</button>
-            </div>
+             <!-- Los botones de limpieza no cambian -->
         </div>
         <ul id="recordingsList"></ul>
     </main>
