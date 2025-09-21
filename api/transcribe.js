@@ -28,6 +28,7 @@ export default async function handler(req, res) {
       audioBuffer,
       {
         model: 'nova-3',
+        language: 'es-419',
         punctuate: true,
         // Al no especificar el parámetro "language", Deepgram
         // activará automáticamente la detección de idioma.
