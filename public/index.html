@@ -16,34 +16,31 @@
     </header>
 
     <main>
-        <!-- NUEVO: Contenedor para las dos acciones principales -->
-        <div class="actions-container">
-            <!-- Tarjeta 1: Grabar Audio -->
-            <div class="action-card">
-                <h3>1. Grabar un Audio Nuevo</h3>
-                <div class="main-controls">
-                    <button id="recordButton" title="Grabar">
-                        <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"></path></svg>
-                    </button>
-                    <button id="pauseButton" title="Pausar" disabled>
-                        <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M14,19H18V5H14M6,19H10V5H6V19Z"></path></svg>
-                    </button>
-                    <button id="stopButton" title="Detener" disabled>
-                        <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M18,18H6V6H18V18Z"></path></svg>
-                    </button>
-                </div>
-                <div id="status">Presiona el botón de grabar para empezar</div>
+        <!-- SECCIÓN 1: GRABAR (AHORA IDENTIFICADA) -->
+        <div class="action-section">
+            <h3>Grabar un Audio Nuevo</h3>
+            <div class="main-controls">
+                <button id="recordButton" title="Grabar">
+                    <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"></path></svg>
+                </button>
+                <button id="pauseButton" title="Pausar" disabled>
+                    <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M14,19H18V5H14M6,19H10V5H6V19Z"></path></svg>
+                </button>
+                <button id="stopButton" title="Detener" disabled>
+                    <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M18,18H6V6H18V18Z"></path></svg>
+                </button>
             </div>
+            <div id="status">Presiona el botón de grabar para empezar</div>
+        </div>
 
-            <!-- Tarjeta 2: Cargar Archivo -->
-            <div class="action-card">
-                <h3>2. Cargar un Archivo Existente</h3>
-                <div class="upload-section">
-                    <div id="dropZone">Arrastra y suelta aquí</div>
-                    <p>o</p>
-                    <label for="fileInput" class="file-label">Seleccionar Archivo</label>
-                    <input type="file" id="fileInput" accept="audio/*" hidden>
-                </div>
+        <!-- SECCIÓN 2: CARGAR (AHORA IDENTIFICADA) -->
+        <div class="action-section">
+            <h3>Cargar un Archivo Existente</h3>
+            <div class="upload-section">
+                <div id="dropZone">Arrastra y suelta un archivo aquí</div>
+                <p>o</p>
+                <label for="fileInput" class="file-label">Seleccionar Archivo</label>
+                <input type="file" id="fileInput" accept="audio/*" hidden>
             </div>
         </div>
         
