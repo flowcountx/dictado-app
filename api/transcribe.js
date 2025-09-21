@@ -1,25 +1,43 @@
-// Importamos el SDK de Deepgram
 import { createClient } from "@deepgram/sdk";
 
-// Vercel requiere que exportemos una función handler por defecto
+// --- NUEVO: CONFIGURACIÓN PARA VERCEL ---
+// Esta línea es crucial. Le dice a Vercel que no procese el cuerpo (body)
+// de la solicitud por nosotros. Queremos recibir el stream de datos crudo.
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+// --- NUEVO: FUNCIÓN AUXILIAR PARA OBTENER EL BUFFER ---
+// Esta función toma la solicitud (req) y convierte el stream de audio
+// en un objeto Buffer, que es el formato que Deepgram necesita.
+async function getBuffer(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+// El handler principal, ahora modificado
 export default async function handler(req, res) {
-  // Solo permitimos solicitudes de tipo POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  // Creamos el cliente de Deepgram usando la clave secreta
-  // ¡MUY IMPORTANTE! Esta clave la configuraremos en Vercel, no aquí.
   const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
 
   try {
-    // La magia sucede aquí. Le pasamos el cuerpo de la solicitud (que es el audio)
-    // a Deepgram para que lo transcriba.
+    // 1. Obtenemos el buffer de audio usando nuestra nueva función
+    const audioBuffer = await getBuffer(req);
+
+    // 2. Pasamos el buffer al SDK de Deepgram en lugar de req.body
     const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
-      req.body, // El audio viene en el cuerpo de la solicitud (req.body)
+      audioBuffer, // ¡Aquí está el cambio principal!
       {
         model: 'nova-2',
-        language: 'es-419', // Coincide con tu captura de pantalla
+        language: 'es-419',
         punctuate: true,
       }
     );
@@ -28,7 +46,6 @@ export default async function handler(req, res) {
       throw error;
     }
 
-    // Si todo va bien, devolvemos el resultado como JSON
     res.status(200).json(result);
 
   } catch (error) {
