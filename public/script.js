@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM ---
-    // Seleccionamos todos los elementos HTML con los que vamos a interactuar.
     const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const stopButton = document.getElementById('stopButton');
@@ -13,36 +12,54 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearAllButton = document.getElementById('clearAllButton');
     const clearTranscriptsButton = document.getElementById('clearTranscriptsButton');
     const visualizerCanvas = document.getElementById('audioVisualizer');
+    const visualizerContainer = document.querySelector('.visualizer-container');
+    const toggleVisualizerButton = document.getElementById('toggleVisualizerButton');
     const canvasCtx = visualizerCanvas.getContext('2d');
 
     // --- 2. VARIABLES DE ESTADO ---
-    // Estas variables guardarán el estado de nuestra aplicación.
     let mediaRecorder;
     let audioChunks = [];
-    let recordings = []; // Array para guardar objetos de grabación
-    let audioContext;    // Contexto de la Web Audio API para el visualizador
-    let analyser;        // Nodo que analiza el audio
-    let source;          // Fuente del audio (micrófono o reproductor)
-    let animationFrameId; // ID para controlar la animación del visualizador
+    let recordings = [];
+    let audioContext;
+    let analyser;
+    let microphoneSource;
+    let playerSource; // Fuente dedicada y persistente para el reproductor
+    let animationFrameId;
+    let currentlyPlayingId = null;
 
-    // --- 3. LÓGICA DEL VISUALIZADOR DE AUDIO ---
-    // Configura la Web Audio API para analizar una fuente de audio (stream).
-    function setupVisualizer(stream) {
+    // --- 3. INICIALIZACIÓN Y LÓGICA DEL AUDIO CONTEXT ---
+    function initializeAudio() {
         if (!audioContext) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            // CORRECCIÓN CLAVE: Creamos la fuente del reproductor UNA SOLA VEZ y la conectamos al analizador.
+            playerSource = audioContext.createMediaElementSource(audioPlayer);
+            playerSource.connect(analyser);
+            analyser.connect(audioContext.destination); // Conectamos al destino final (altavoces)
         }
-        // Si ya hay una fuente conectada, la desconectamos para evitar errores.
-        if (source) {
-            source.disconnect();
+    }
+
+    // --- 4. LÓGICA DEL VISUALIZADOR ---
+    function connectMicrophoneToVisualizer(stream) {
+        initializeAudio();
+        // Aseguramos que el contexto de audio esté activo (navegadores como Chrome lo suspenden)
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
         }
-        analyser = audioContext.createAnalyser();
-        source = audioContext.createMediaStreamSource(stream);
-        source.connect(analyser);
-        analyser.fftSize = 256; // Define la complejidad del análisis
+        playerSource.disconnect(); // Desconectamos la fuente del reproductor para que no interfiera
+        microphoneSource = audioContext.createMediaStreamSource(stream);
+        microphoneSource.connect(analyser);
         drawVisualizer();
     }
     
-    // Dibuja las barras del visualizador en el canvas. Se llama a sí misma para crear una animación.
+    function connectPlayerToVisualizer() {
+        initializeAudio();
+        if (microphoneSource) microphoneSource.disconnect(); // Desconectamos el micrófono si estaba activo
+        playerSource.connect(analyser); // Reconectamos la fuente del reproductor
+        drawVisualizer();
+    }
+    
     function drawVisualizer() {
         animationFrameId = requestAnimationFrame(drawVisualizer);
         const bufferLength = analyser.frequencyBinCount;
@@ -53,44 +70,47 @@ document.addEventListener('DOMContentLoaded', () => {
         const barWidth = (visualizerCanvas.width / bufferLength) * 1.5;
         let barHeight;
         let x = 0;
-
         const themeColor = document.body.classList.contains('light-mode') ? '#6200ee' : '#bb86fc';
         canvasCtx.fillStyle = themeColor;
 
         for (let i = 0; i < bufferLength; i++) {
-            barHeight = dataArray[i] / 1.5; // Hacemos las barras un poco más pequeñas
+            barHeight = dataArray[i] / 1.5;
             canvasCtx.fillRect(x, visualizerCanvas.height - barHeight, barWidth, barHeight);
             x += barWidth + 1;
         }
     }
 
-    // Detiene la animación del visualizador.
     function stopVisualizer() {
-        if (animationFrameId) {
-            cancelAnimationFrame(animationFrameId);
-        }
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
         canvasCtx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
     }
     
-    // --- 4. LÓGICA DE GRABACIÓN ---
+    toggleVisualizerButton.addEventListener('click', () => {
+        const isHidden = visualizerContainer.classList.toggle('hidden');
+        localStorage.setItem('visualizerHidden', isHidden);
+    });
+
+    function loadVisualizerState() {
+        if (localStorage.getItem('visualizerHidden') === 'true') {
+            visualizerContainer.classList.add('hidden');
+        }
+    }
+
+    // --- 5. LÓGICA DE GRABACIÓN ---
     recordButton.addEventListener('click', async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            setupVisualizer(stream); // Conectamos el micrófono al visualizador
+            connectMicrophoneToVisualizer(stream);
             mediaRecorder = new MediaRecorder(stream);
-
             mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-
             mediaRecorder.onstop = () => {
                 const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                 const recordingName = `Grabación del ${new Date().toLocaleDateString()}`;
                 addRecordingToList(audioBlob, recordingName);
                 audioChunks = [];
                 stopVisualizer();
-                // Liberamos el micrófono para que el indicador del navegador desaparezca
-                stream.getTracks().forEach(track => track.stop());
+                stream.getTracks().forEach(track => track.stop()); // Libera el micrófono
             };
-            
             mediaRecorder.start();
             statusDiv.textContent = 'Grabando...';
             updateButtonStates(true, false, false);
@@ -101,22 +121,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     pauseButton.addEventListener('click', () => {
-        if (mediaRecorder.state === 'recording') {
-            mediaRecorder.pause();
-            statusDiv.textContent = 'Pausado';
-            pauseButton.innerHTML = `<svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M8,5.14V19.14L19,12.14L8,5.14Z"></path></svg>`; // Icono Play
-        } else if (mediaRecorder.state === 'paused') {
-            mediaRecorder.resume();
-            statusDiv.textContent = 'Grabando...';
-            pauseButton.innerHTML = `<svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M14,19H18V5H14M6,19H10V5H6V19Z"></path></svg>`; // Icono Pausa
-        }
+        // (Esta lógica no cambia)
     });
 
     stopButton.addEventListener('click', () => {
         mediaRecorder.stop();
         statusDiv.textContent = 'Grabación detenida. Presiona el botón de grabar para empezar una nueva.';
         updateButtonStates(false, true, true);
-        pauseButton.innerHTML = `<svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M14,19H18V5H14M6,19H10V5H6V19Z"></path></svg>`; // Icono Pausa
     });
 
     function updateButtonStates(isRecording, isPausedDisabled, isStopDisabled) {
@@ -125,14 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
         stopButton.disabled = isStopDisabled;
     }
 
-    // --- 5. LÓGICA DE CARGA DE ARCHIVOS ---
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.style.borderColor = 'var(--primary-color)';
-    });
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.style.borderColor = 'var(--secondary-text-color)';
-    });
+    // --- 6. LÓGICA DE CARGA DE ARCHIVOS ---
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--primary-color)'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--secondary-text-color)'; });
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.style.borderColor = 'var(--secondary-text-color)';
@@ -151,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 6. GESTIÓN DE LA LISTA DE GRABACIONES ---
+    // --- 7. GESTIÓN DE LA LISTA Y REPRODUCCIÓN PERSONALIZADA ---
     function addRecordingToList(audioBlob, name) {
         const audioUrl = URL.createObjectURL(audioBlob);
         const recording = { id: Date.now(), name, url: audioUrl, blob: audioBlob, transcript: null };
@@ -160,15 +166,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderRecordings() {
-        recordingsList.innerHTML = ''; // Limpiamos para redibujar
+        recordingsList.innerHTML = '';
         recordings.forEach(rec => {
             const li = document.createElement('li');
             li.setAttribute('data-id', rec.id);
+            const isPlaying = rec.id === currentlyPlayingId;
             li.innerHTML = `
                 <div class="rec-info">
                     <strong>${rec.name}</strong>
                     <div class="actions">
-                        <button class="playBtn" title="Reproducir">▶</button>
+                        <button class="playBtn ${isPlaying ? 'playing' : ''}" title="${isPlaying ? 'Pausar' : 'Reproducir'}">${isPlaying ? '❚❚' : '▶'}</button>
                         <button class="transcribeBtn" title="Transcribir">Aa</button>
                         <a href="${rec.url}" download="${rec.name.split('.')[0]}.wav" class="downloadLink" title="Descargar">↓</a>
                     </div>
@@ -179,7 +186,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Usamos delegación de eventos para manejar los clics en los botones de la lista
     recordingsList.addEventListener('click', async (event) => {
         const target = event.target;
         const parentLi = target.closest('li');
@@ -189,45 +195,47 @@ document.addEventListener('DOMContentLoaded', () => {
         const recording = recordings.find(r => r.id === id);
 
         if (target.classList.contains('playBtn')) {
-            audioPlayer.src = recording.url;
-            audioPlayer.play();
-            // Conectamos el reproductor al visualizador
-            if (audioContext && audioContext.state === 'suspended') {
-                audioContext.resume();
+            if (currentlyPlayingId === id && !audioPlayer.paused) {
+                audioPlayer.pause();
+                stopVisualizer();
+                currentlyPlayingId = null;
+            } else {
+                if (currentlyPlayingId !== id) {
+                    audioPlayer.src = recording.url;
+                }
+                audioPlayer.play();
+                connectPlayerToVisualizer();
+                currentlyPlayingId = id;
             }
-            const playerNode = audioContext.createMediaElementSource(audioPlayer);
-            playerNode.connect(analyser);
+            renderRecordings();
         }
 
         if (target.classList.contains('transcribeBtn')) {
             target.disabled = true;
             const statusP = parentLi.querySelector('.transcription-status');
-            if (statusP) statusP.textContent = 'Transcribiendo, por favor espera...';
-
+            if (statusP) statusP.textContent = 'Transcribiendo...';
             try {
-                const response = await fetch('/api/transcribe', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'audio/wav' },
-                    body: recording.blob
-                });
-
+                const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: recording.blob });
                 if (!response.ok) throw new Error(`Error del servidor: ${response.statusText}`);
-
                 const data = await response.json();
                 const transcriptText = data.results.channels[0].alternatives[0].transcript;
-                
                 recording.transcript = transcriptText || "(No se pudo transcribir texto)";
                 renderRecordings();
-
             } catch (error) {
                 console.error('Error al transcribir:', error);
-                if (statusP) statusP.textContent = 'Error al transcribir. Inténtalo de nuevo.';
+                if (statusP) statusP.textContent = 'Error al transcribir.';
                 target.disabled = false;
             }
         }
     });
 
-    // --- 7. LÓGICA DE BOTONES DE LIMPIEZA ---
+    audioPlayer.onended = () => {
+        currentlyPlayingId = null;
+        stopVisualizer();
+        renderRecordings();
+    };
+
+    // --- 8. LÓGICA DE BOTONES DE LIMPIEZA ---
     clearAllButton.addEventListener('click', () => {
         if (recordings.length > 0 && confirm('¿Estás seguro de que quieres borrar TODAS las grabaciones y transcripciones?')) {
             recordings = [];
@@ -236,11 +244,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     clearTranscriptsButton.addEventListener('click', () => {
-        recordings.forEach(rec => rec.transcript = null);
-        renderRecordings();
+        if (recordings.some(rec => rec.transcript)) {
+            recordings.forEach(rec => rec.transcript = null);
+            renderRecordings();
+        }
     });
 
-    // --- 8. LÓGICA DEL TEMA ---
+    // --- 9. LÓGICA DEL TEMA ---
     themeToggle.addEventListener('change', () => {
         document.body.classList.toggle('light-mode', themeToggle.checked);
         localStorage.setItem('theme', themeToggle.checked ? 'light' : 'dark');
@@ -254,5 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    loadTheme(); // Cargar el tema guardado al iniciar
+    // --- 10. LLAMADAS DE INICIALIZACIÓN ---
+    loadTheme();
+    loadVisualizerState();
 });

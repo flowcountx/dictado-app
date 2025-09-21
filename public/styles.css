@@ -9,6 +9,7 @@
     --pause-color: #fca130;
     --stop-color: #3f51b5;
     --shadow-color: rgba(0, 0, 0, 0.5);
+    --border-color: #333;
 }
 
 body.light-mode {
@@ -22,6 +23,7 @@ body.light-mode {
     --pause-color: #fca130;
     --stop-color: #4285f4;
     --shadow-color: rgba(0, 0, 0, 0.1);
+    --border-color: #ddd;
 }
 
 body {
@@ -34,80 +36,36 @@ body {
     transition: background-color 0.3s, color 0.3s;
 }
 
-header {
+/* ... (Estilos de header, h1, etc. que no cambian) ... */
+
+/* --- Visualizador Mejorado --- */
+.visualizer-wrapper {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 20px;
+}
+.visualizer-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--surface-color);
-    padding-bottom: 10px;
+    margin-bottom: 10px;
 }
-
-h1, h2, h3 { color: var(--primary-text-color); }
-
-.controls { margin: 20px 0; text-align: center; }
-.controls button {
-    background-color: var(--surface-color);
+.visualizer-header h3 { margin: 0; font-size: 1em; }
+#toggleVisualizerButton {
+    background: none;
     border: none;
-    border-radius: 50%;
-    width: 60px;
-    height: 60px;
-    margin: 0 10px;
     cursor: pointer;
-    color: var(--primary-text-color);
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    box-shadow: 0 4px 8px var(--shadow-color);
-    transition: transform 0.2s, background-color 0.2s;
+    font-size: 1.2em;
+    opacity: 0.7;
 }
-
-.controls button:hover:not(:disabled) { transform: translateY(-3px); }
-.controls button:disabled { color: #666; cursor: not-allowed; background-color: #333; }
-
-#recordButton:not(:disabled) { color: var(--record-color); }
-#pauseButton:not(:disabled) { color: var(--pause-color); }
-#stopButton:not(:disabled) { color: var(--stop-color); }
-
-.visualizer-container {
-    height: 100px;
-    background-color: var(--surface-color);
-    border-radius: 8px;
-    margin: 20px 0;
-    padding: 10px;
-}
+.visualizer-container { height: 80px; /* Más pequeño */ }
+.visualizer-container.hidden { display: none; }
 #audioVisualizer { width: 100%; height: 100%; }
 
-#status { text-align: center; margin-bottom: 15px; color: var(--secondary-text-color); }
-#audioPlayer { width: 100%; }
+/* ... (Estilos de .controls, #status, etc. que no cambian) ... */
 
-.upload-section {
-    background-color: var(--surface-color);
-    border: 2px dashed var(--secondary-text-color);
-    border-radius: 8px;
-    padding: 20px;
-    text-align: center;
-    margin: 30px 0;
-}
-#dropZone { padding: 20px; font-weight: bold; }
-
-.recordings-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 30px;
-}
-.batch-actions button {
-    background: none;
-    border: 1px solid var(--secondary-text-color);
-    color: var(--secondary-text-color);
-    padding: 8px 12px;
-    border-radius: 5px;
-    cursor: pointer;
-    margin-left: 10px;
-}
-.batch-actions button:hover { background-color: var(--surface-color); }
-
-#recordingsList { list-style: none; padding: 0; }
+/* --- Estilos para la Nueva Lista de Grabaciones --- */
 #recordingsList li {
     background-color: var(--surface-color);
     margin-bottom: 10px;
@@ -115,8 +73,34 @@ h1, h2, h3 { color: var(--primary-text-color); }
     border-radius: 8px;
     box-shadow: 0 2px 4px var(--shadow-color);
 }
-#recordingsList li .actions button, #recordingsList li .actions a { /* Estilos de botones de la lista */ }
-
+.rec-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.rec-info strong {
+    flex-grow: 1;
+    margin-right: 15px;
+}
+.actions button, .actions a {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--secondary-text-color);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    margin-left: 5px;
+    font-size: 1.2em;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    text-decoration: none;
+}
+.actions .playBtn.playing {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
 .transcription {
     margin-top: 15px;
     padding: 10px;

@@ -16,29 +16,30 @@
     </header>
 
     <main>
-        <div class="visualizer-container">
-            <canvas id="audioVisualizer"></canvas>
+        <div class="visualizer-wrapper">
+            <div class="visualizer-header">
+                <h3>Visualizador de Audio</h3>
+                <button id="toggleVisualizerButton" title="Ocultar/Mostrar Visualizador">👁️</button>
+            </div>
+            <div class="visualizer-container">
+                <canvas id="audioVisualizer"></canvas>
+            </div>
         </div>
 
         <div class="controls">
-            <button id="recordButton" title="Grabar">
-                <!-- Icono de Grabar (círculo) -->
-                <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"></path></svg>
-            </button>
-            <button id="pauseButton" title="Pausar" disabled>
-                <!-- Icono de Pausa -->
-                <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M14,19H18V5H14M6,19H10V5H6V19Z"></path></svg>
-            </button>
-            <button id="stopButton" title="Detener" disabled>
-                <!-- Icono de Detener -->
-                <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M18,18H6V6H18V18Z"></path></svg>
-            </button>
+            <!-- Los botones de grabar, pausar, detener no cambian -->
+            <button id="recordButton" title="Grabar"><svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"></path></svg></button>
+            <button id="pauseButton" title="Pausar" disabled><svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M14,19H18V5H14M6,19H10V5H6V19Z"></path></svg></button>
+            <button id="stopButton" title="Detener" disabled><svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M18,18H6V6H18V18Z"></path></svg></button>
         </div>
 
         <div id="status">Presiona el botón de grabar para empezar</div>
-        <audio id="audioPlayer" controls></audio>
+        
+        <!-- Este reproductor ahora está oculto. Lo usaremos como el "motor" de audio. -->
+        <audio id="audioPlayer" hidden></audio>
 
         <div class="upload-section">
+            <!-- La sección de carga no cambia -->
             <h3>¿Ya tienes un audio?</h3>
             <div id="dropZone">Arrastra y suelta un archivo de audio aquí</div>
             <p>o</p>
