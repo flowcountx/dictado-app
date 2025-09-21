@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
       audioBuffer, // ¡Aquí está el cambio principal!
       {
-        model: 'nova-2',
+        model: 'nova-3',
         language: 'es-419',
         punctuate: true,
       }
