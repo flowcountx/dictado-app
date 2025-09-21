@@ -1,17 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM ---
+    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM (COMPLETO) ---
     const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const stopButton = document.getElementById('stopButton');
     const statusDiv = document.getElementById('status');
-    const audioPlayer = document.getElementById('audioPlayer'); // Nuestro motor de audio oculto
+    const audioPlayer = document.getElementById('audioPlayer');
     const recordingsList = document.getElementById('recordingsList');
     const themeToggle = document.getElementById('themeToggle');
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
     const clearAllButton = document.getElementById('clearAllButton');
     const clearTranscriptsButton = document.getElementById('clearTranscriptsButton');
-    // ... (Puedes añadir aquí los selectores del visualizador si decides re-implementarlo)
 
     // --- 2. VARIABLES DE ESTADO ---
     let mediaRecorder;
@@ -19,36 +18,29 @@ document.addEventListener('DOMContentLoaded', () => {
     let recordings = [];
     let currentlyPlayingId = null;
 
-    // --- 3. LÓGICA DE GRABACIÓN (CON BUGS CORREGIDOS) ---
+    // --- 3. LÓGICA DE GRABACIÓN (ESTABLE) ---
     recordButton.addEventListener('click', async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
-
             mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-
             mediaRecorder.onstop = () => {
                 const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                // Nombre de archivo mejorado con fecha y hora
                 const name = `Grabación - ${new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}`;
                 addRecordingToList(audioBlob, name);
                 audioChunks = [];
-                stream.getTracks().forEach(track => track.stop()); // Libera el micrófono
+                stream.getTracks().forEach(track => track.stop());
             };
-
             mediaRecorder.start();
             statusDiv.textContent = 'Grabando...';
-            // CORRECCIÓN CLAVE: Actualizamos el estado de los botones inmediatamente
             updateButtonStates(true, false, false);
         } catch (err) {
-            console.error("Error al acceder al micrófono:", err);
             statusDiv.textContent = 'Error: No se pudo acceder al micrófono.';
         }
     });
 
     pauseButton.addEventListener('click', () => {
         if (!mediaRecorder) return;
-
         if (mediaRecorder.state === 'recording') {
             mediaRecorder.pause();
             statusDiv.textContent = 'Pausado';
@@ -60,9 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     stopButton.addEventListener('click', () => {
         if (!mediaRecorder) return;
-
         mediaRecorder.stop();
-        statusDiv.textContent = 'Grabación detenida. Presiona "Grabar" para empezar.';
+        statusDiv.textContent = 'Grabación detenida. Presiona "Grabar".';
         updateButtonStates(false, true, true);
     });
 
@@ -72,14 +63,13 @@ document.addEventListener('DOMContentLoaded', () => {
         stopButton.disabled = isStopDisabled;
     }
 
-    // --- 4. LÓGICA DE CARGA DE ARCHIVOS ---
+    // --- 4. LÓGICA DE CARGA DE ARCHIVOS (RESTAURADA) ---
     dropZone.addEventListener('dragover', e => e.preventDefault());
     dropZone.addEventListener('drop', e => {
         e.preventDefault();
         if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
     });
     fileInput.addEventListener('change', () => handleFiles(fileInput.files));
-
     function handleFiles(files) {
         Array.from(files).filter(file => file.type.startsWith('audio/')).forEach(file => {
             addRecordingToList(file, file.name);
@@ -89,16 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 5. GESTIÓN DE LA LISTA Y REPRODUCTOR PERSONALIZADO ---
     function addRecordingToList(audioBlob, name) {
         const url = URL.createObjectURL(audioBlob);
-        // Usamos un <audio> temporal para leer la duración del archivo
         const tempAudio = new Audio(url);
         tempAudio.addEventListener('loadedmetadata', () => {
             recordings.push({ 
-                id: Date.now(), 
-                name, 
-                url, 
-                blob: audioBlob, 
-                transcript: null, 
-                duration: tempAudio.duration 
+                id: Date.now(), name, url, blob: audioBlob, 
+                transcript: null, duration: tempAudio.duration 
             });
             renderRecordings();
         });
@@ -134,80 +119,76 @@ document.addEventListener('DOMContentLoaded', () => {
             recordingsList.appendChild(li);
         });
     }
-
-    // Event Delegation para toda la lista (reproducir, buscar, transcribir, etc.)
+    
+    // CORRECCIÓN CLAVE: Lógica de eventos unificada y robusta
     recordingsList.addEventListener('click', (e) => {
         const li = e.target.closest('li');
         if (!li) return;
         const id = Number(li.dataset.id);
+        const recording = recordings.find(r => r.id === id);
+        if (!recording) return;
 
-        if (e.target.matches('.play-pause-btn')) handlePlayPause(id);
-        if (e.target.matches('.progress-bar-wrapper')) handleSeek(e, id);
-        if (e.target.matches('.transcribeBtn')) handleTranscribe(id, e.target);
-        if (e.target.matches('.copyBtn')) handleCopy(id, e.target);
+        if (e.target.matches('.play-pause-btn')) handlePlayPause(id, recording);
+        if (e.target.matches('.progress-bar-wrapper')) handleSeek(e, id, recording);
+        if (e.target.matches('.transcribeBtn')) handleTranscribe(id, e.target, recording);
+        if (e.target.matches('.copyBtn')) handleCopy(id, e.target, recording);
     });
 
-    function handlePlayPause(id) {
+    function handlePlayPause(id, recording) {
         if (currentlyPlayingId === id && !audioPlayer.paused) {
             audioPlayer.pause();
-            currentlyPlayingId = null;
         } else {
-            const rec = recordings.find(r => r.id === id);
-            if (currentlyPlayingId !== id) audioPlayer.src = rec.url;
+            if (currentlyPlayingId !== id) audioPlayer.src = recording.url;
             audioPlayer.play();
             currentlyPlayingId = id;
         }
-        renderRecordings();
     }
 
-    function handleSeek(e, id) {
-        const rec = recordings.find(r => r.id === id);
-        // Permitir buscar incluso si no se está reproduciendo, para empezar desde un punto
+    function handleSeek(e, id, recording) {
         if (currentlyPlayingId !== id) {
-             audioPlayer.src = rec.url;
-             currentlyPlayingId = id;
+            audioPlayer.src = recording.url;
+            currentlyPlayingId = id;
         }
-        const progressBarWrapper = e.currentTarget;
-        const clickX = e.offsetX;
-        const width = progressBarWrapper.clientWidth;
-        const duration = rec.duration;
-        audioPlayer.currentTime = (clickX / width) * duration;
-        if (audioPlayer.paused) audioPlayer.play(); // Si estaba pausado, empieza a reproducir
-        renderRecordings();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const width = e.currentTarget.clientWidth;
+        audioPlayer.currentTime = (clickX / width) * recording.duration;
+        if (audioPlayer.paused) audioPlayer.play();
     }
 
-    async function handleTranscribe(id, button) {
+    async function handleTranscribe(id, button, recording) {
         button.disabled = true;
         const statusP = button.closest('li').querySelector('.transcription-status');
         if (statusP) statusP.textContent = 'Transcribiendo...';
         
         try {
-            const recording = recordings.find(r => r.id === id);
             const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: recording.blob });
-            if (!response.ok) throw new Error(`Error del servidor: ${response.statusText}`);
+            if (!response.ok) throw new Error(`Error: ${response.statusText}`);
             const data = await response.json();
-            const transcriptText = data.results.channels[0].alternatives[0].transcript;
-            recording.transcript = transcriptText || "(No se pudo transcribir texto)";
-            renderRecordings();
+            recording.transcript = data.results.channels[0].alternatives[0].transcript || "(No se pudo transcribir)";
         } catch (error) {
-            console.error('Error al transcribir:', error);
             if (statusP) statusP.textContent = 'Error al transcribir.';
-            button.disabled = false;
+        } finally {
+            renderRecordings();
         }
     }
 
-    async function handleCopy(id, button) {
-        try {
-            const recording = recordings.find(r => r.id === id);
-            await navigator.clipboard.writeText(recording.transcript);
-            button.textContent = '¡Copiado!';
-            setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
-        } catch (err) {
-            console.error('Error al copiar texto: ', err);
-        }
+    async function handleCopy(id, button, recording) {
+        await navigator.clipboard.writeText(recording.transcript);
+        button.textContent = '¡Copiado!';
+        setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
     }
 
     // --- 6. EVENTOS DEL MOTOR DE AUDIO ---
+    audioPlayer.addEventListener('play', () => renderRecordings());
+    audioPlayer.addEventListener('pause', () => {
+        currentlyPlayingId = null;
+        renderRecordings();
+    });
+    audioPlayer.addEventListener('ended', () => {
+        currentlyPlayingId = null;
+        renderRecordings();
+    });
     audioPlayer.addEventListener('timeupdate', () => {
         if (!currentlyPlayingId) return;
         const li = recordingsList.querySelector(`li[data-id='${currentlyPlayingId}']`);
@@ -219,30 +200,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (timeDisplay) timeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
     });
 
-    audioPlayer.addEventListener('ended', () => {
-        currentlyPlayingId = null;
-        renderRecordings();
-    });
-
     function formatTime(seconds) {
         const min = Math.floor(seconds / 60);
         const sec = Math.floor(seconds % 60).toString().padStart(2, '0');
         return isNaN(min) || isNaN(sec) ? '0:00' : `${min}:${sec}`;
     }
 
-    // --- 7. LÓGICA DE BOTONES DE LIMPIEZA Y TEMA ---
+    // --- 7. BOTONES DE LIMPIEZA Y TEMA (RESTAURADOS) ---
     clearAllButton.addEventListener('click', () => {
-        if (recordings.length > 0 && confirm('¿Estás seguro de que quieres borrar TODAS las grabaciones y transcripciones?')) {
+        if (recordings.length > 0 && confirm('¿Estás seguro? Se borrarán TODAS las grabaciones.')) {
             recordings = [];
             renderRecordings();
         }
     });
     
     clearTranscriptsButton.addEventListener('click', () => {
-        if (recordings.some(rec => rec.transcript)) {
-            recordings.forEach(rec => rec.transcript = null);
-            renderRecordings();
-        }
+        recordings.forEach(rec => rec.transcript = null);
+        renderRecordings();
     });
 
     themeToggle.addEventListener('change', () => {
@@ -252,18 +226,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function loadTheme() {
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'light') {
+        if (localStorage.getItem('theme') === 'light') {
             themeToggle.checked = true;
-            document.body.classList.remove('dark-mode');
             document.body.classList.add('light-mode');
-        } else {
-            themeToggle.checked = false; // Asegura el estado por defecto
-            document.body.classList.add('dark-mode');
+            document.body.classList.remove('dark-mode');
         }
     }
     
     // --- 8. INICIALIZACIÓN ---
     loadTheme();
-    updateButtonStates(false, true, true); // Estado inicial de los botones
+    updateButtonStates(false, true, true);
 });

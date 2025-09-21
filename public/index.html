@@ -16,10 +16,7 @@
     </header>
 
     <main>
-        <div class="visualizer-wrapper">
-            <!-- El visualizador no cambia -->
-        </div>
-
+        <!-- Los controles de grabación modernos se quedan -->
         <div class="main-controls">
             <button id="recordButton" title="Grabar">
                 <svg viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"></path></svg>
@@ -34,16 +31,24 @@
 
         <div id="status">Presiona el botón de grabar para empezar</div>
         
-        <!-- Este es nuestro motor de audio, ahora invisible para el usuario -->
         <audio id="audioPlayer" hidden></audio>
 
+        <!-- SECCIÓN DE CARGA RESTAURADA Y MEJORADA -->
         <div class="upload-section">
-             <!-- La sección de carga no cambia -->
+            <h3>Cargar un archivo de audio</h3>
+            <div id="dropZone">Arrastra y suelta un archivo aquí</div>
+            <p>o</p>
+            <label for="fileInput" class="file-label">Seleccionar Archivo</label>
+            <input type="file" id="fileInput" accept="audio/*" hidden>
         </div>
 
+        <!-- BOTONES DE LIMPIEZA RESTAURADOS -->
         <div class="recordings-header">
             <h2>Grabaciones</h2>
-             <!-- Los botones de limpieza no cambian -->
+            <div class="batch-actions">
+                <button id="clearTranscriptsButton">Limpiar Transcripciones</button>
+                <button id="clearAllButton">Limpiar Todo</button>
+            </div>
         </div>
         <ul id="recordingsList"></ul>
     </main>
