@@ -76,16 +76,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO ---
+    
+    // --- CORRECCIÓN CLAVE EN playRecording ---
     function playRecording(id) {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
-        audioPlayer.playbackRate = settings.speed;
+        
+        // Si es un audio diferente, cambiamos la fuente.
         if (currentlyPlayingId !== id) {
             audioPlayer.src = rec.url;
         }
+
+        // Se aplica la velocidad JUSTO ANTES de reproducir.
+        // Esto soluciona el reseteo de velocidad al cambiar el `src`.
+        audioPlayer.playbackRate = settings.speed;
+        
         audioPlayer.play();
         currentlyPlayingId = id;
     }
+
     function handlePlayPause(idFromButton = null) {
         const targetId = idFromButton || currentlyPlayingId;
         if (!targetId) {
@@ -398,10 +407,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 playRecording(sortedIds[0]);
             }
         } else {
-            // --- MODIFICACIÓN CLAVE ---
-            // En modo 'ninguna', no hacemos `currentlyPlayingId = null`.
-            // Simplemente llamamos a updatePlayerUI() para que el botón cambie a '▶',
-            // pero el resaltado del <li> se mantenga.
             updatePlayerUI();
         }
     });
