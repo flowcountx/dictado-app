@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM ---
+    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM (COMPLETO) ---
     const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const stopButton = document.getElementById('stopButton');
@@ -85,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
         audioPlayer.play();
         currentlyPlayingId = id;
     }
+
     function handlePlayPause(idFromButton = null) {
         const targetId = idFromButton || currentlyPlayingId;
         if (!targetId) {
@@ -92,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sortedIds.length > 0) playRecording(sortedIds[0]);
             return;
         }
+        
         if (currentlyPlayingId === targetId && !audioPlayer.paused) {
             audioPlayer.pause();
         } else {
@@ -109,7 +111,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function handleNext() {
         const sortedIds = getSortedIds();
-        if (sortedIds.length === 0) return;
         const currentIndex = sortedIds.indexOf(currentlyPlayingId);
         if (currentIndex < sortedIds.length - 1) {
             playRecording(sortedIds[currentIndex + 1]);
@@ -117,7 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function handlePrevious() {
         const sortedIds = getSortedIds();
-        if (sortedIds.length === 0) return;
         const currentIndex = sortedIds.indexOf(currentlyPlayingId);
         if (currentIndex > 0) {
             playRecording(sortedIds[currentIndex - 1]);
@@ -188,7 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const li = e.target.closest('li[data-id]');
         if (!li) return;
         const id = Number(li.dataset.id);
-
         if (e.target.matches('.play-pause-btn')) handlePlayPause(id);
         if (e.target.matches('.stop-btn')) handleStop();
         if (e.target.matches('.rewind-btn')) handleRewind();
@@ -229,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playRecording(id);
     }
 
-    // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
+    // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN (CON CORRECCIÓN) ---
     recordingsList.addEventListener('dragstart', (e) => {
         const li = e.target.closest('li[data-id]');
         if (li) { draggedItemId = Number(li.dataset.id); e.target.classList.add('dragging'); }
@@ -245,8 +244,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     recordingsList.addEventListener('drop', () => {
+        // CORRECCIÓN CLAVE: Actualizamos el array de datos para que coincida con el nuevo orden del DOM
         const newOrderIds = [...recordingsList.querySelectorAll('li[data-id]')].map(li => Number(li.dataset.id));
         recordings.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+
+        // Desactivamos la ordenación automática al reordenar manualmente
         sortToggle.checked = false;
         settings.sortDesc = false;
         saveSettings();
@@ -325,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
     // --- 9. EVENTOS DEL MOTOR DE AUDIO (CON CORRECCIONES) ---
+    // CORRECCIÓN CLAVE: Nueva función ligera para actualizar la UI sin reconstruirla
     function updatePlayerUI() {
         for (const li of recordingsList.children) {
             const id = Number(li.dataset.id);
@@ -336,11 +339,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     audioPlayer.addEventListener('loadedmetadata', () => {
-        const rec = recordings.find(r => r.id === currentlyPlayingId);
-        if (rec && rec.duration === 0) {
-            rec.duration = audioPlayer.duration;
-            renderRecordings();
-        }
         if (seekToTime !== null) {
             audioPlayer.currentTime = seekToTime;
             seekToTime = null;
