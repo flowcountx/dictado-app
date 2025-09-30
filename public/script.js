@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     pauseButton.addEventListener('click', () => {
         if (!mediaRecorder) return;
-        if (mediaRecorder.state === 'recording') { mediaRecorder.pause(); statusDiv.textContent = 'Pausado'; } 
+        if (mediaRecorder.state === 'recording') { mediaRecorder.pause(); statusDiv.textContent = 'Pausado'; }
         else if (mediaRecorder.state === 'paused') { mediaRecorder.resume(); statusDiv.textContent = 'Grabando...'; }
     });
     stopButton.addEventListener('click', () => {
@@ -124,15 +124,15 @@ document.addEventListener('DOMContentLoaded', () => {
             playRecording(sortedIds[currentIndex - 1]);
         }
     }
-    
+
     // --- 5. RENDERIZADO Y GESTIÓN DE LA LISTA ---
     function addRecordingToList(audioBlob, name) {
         const url = URL.createObjectURL(audioBlob);
         const tempAudio = new Audio(url);
         tempAudio.addEventListener('loadedmetadata', () => {
-            recordings.push({ 
-                id: Date.now(), name, url, blob: audioBlob, 
-                transcript: null, duration: tempAudio.duration 
+            recordings.push({
+                id: Date.now(), name, url, blob: audioBlob,
+                transcript: null, duration: tempAudio.duration
             });
             renderRecordings();
         });
@@ -173,11 +173,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="transcribeBtn">Transcribir</button>
                     <a href="${rec.url}" download="${rec.name}.wav" class="downloadLink">Descargar</a>
                 </div>
-                ${rec.transcript !== null 
+                ${rec.transcript !== null
                     ? `<div class="transcription-wrapper">
                          <p class="transcription">${rec.transcript}</p>
                          <button class="copyBtn">Copiar</button>
-                       </div>` 
+                       </div>`
                     : `<p class="transcription-status"></p>`
                 }
             `;
@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.matches('.copyBtn')) handleCopy(id, e.target);
         if (e.target.closest('.progress-bar-wrapper')) handleSeek(e, id);
     });
-    
+
     async function handleTranscribe(id, button) {
         const recording = recordings.find(r => r.id === id);
         button.disabled = true;
@@ -222,12 +222,14 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
     }
 
-    // --- CÓDIGO CORREGIDO ---
+    // --- CÓDIGO CORREGIDO Y DEFINITIVO ---
     function handleSeek(e, id) {
         const recording = recordings.find(r => r.id === id);
         if (!recording || isNaN(recording.duration)) return;
-
-        const progressBarWrapper = e.currentTarget.closest('.progress-bar-wrapper');
+        
+        // --- CORRECCIÓN CLAVE AQUÍ ---
+        // Usamos e.target (el elemento clickeado) en lugar de e.currentTarget (la lista ul)
+        const progressBarWrapper = e.target.closest('.progress-bar-wrapper');
         if (!progressBarWrapper) return;
 
         const rect = progressBarWrapper.getBoundingClientRect();
@@ -235,16 +237,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const width = progressBarWrapper.clientWidth;
         const newTime = (clickX / width) * recording.duration;
 
-        // Si el audio que se quiere buscar es el que ya está sonando
         if (currentlyPlayingId === id && audioPlayer.src) {
             audioPlayer.currentTime = newTime;
-            // Nos aseguramos de que esté sonando si estaba en pausa
             if (audioPlayer.paused) {
                 audioPlayer.play();
             }
         } else {
-            // Si es un audio nuevo, usamos la variable global para que
-            // el evento 'loadedmetadata' la recoja después de cambiar el src.
             seekToTime = newTime;
             playRecording(id);
         }
@@ -261,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const afterElement = getDragAfterElement(recordingsList, e.clientY);
         const dragging = document.querySelector('.dragging');
         if (dragging) {
-            if (afterElement == null) { recordingsList.appendChild(dragging); } 
+            if (afterElement == null) { recordingsList.appendChild(dragging); }
             else { recordingsList.insertBefore(dragging, afterElement); }
         }
     });
@@ -277,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return draggableElements.reduce((closest, child) => {
             const box = child.getBoundingClientRect();
             const offset = y - box.top - box.height / 2;
-            if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; } 
+            if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; }
             else { return closest; }
         }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
