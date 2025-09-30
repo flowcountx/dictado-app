@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('fileInput');
     const clearAllButton = document.getElementById('clearAllButton');
     const clearTranscriptsButton = document.getElementById('clearTranscriptsButton');
+    const stopAllButton = document.getElementById('stopAllButton'); // <-- NUEVO BOTÓN SELECCIONADO
     const speedControl = document.getElementById('speedControl');
     const speedValue = document.getElementById('speedValue');
     const repeatControl = document.getElementById('repeatControl');
@@ -80,7 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
 
-        // --- MEJORA: Guardar la posición del audio anterior ANTES de cambiarlo ---
         if (currentlyPlayingId && currentlyPlayingId !== id) {
             const oldRec = recordings.find(r => r.id === currentlyPlayingId);
             if (oldRec) {
@@ -106,7 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (currentlyPlayingId === targetId && !audioPlayer.paused) {
             audioPlayer.pause();
-            // --- MEJORA: Guardar la posición al pausar ---
             const rec = recordings.find(r => r.id === currentlyPlayingId);
             if (rec) {
                 rec.lastPosition = audioPlayer.currentTime;
@@ -127,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         audioPlayer.pause();
         audioPlayer.currentTime = 0;
-        // --- MEJORA: Resetear también la posición guardada ---
         rec.lastPosition = 0;
     }
 
@@ -160,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             recordings.push({
                 id: Date.now(), name, url, blob: audioBlob,
                 transcript: null, duration: tempAudio.duration,
-                lastPosition: 0 // --- MEJORA: Añadimos la propiedad para guardar la posición ---
+                lastPosition: 0 
             });
             renderRecordings();
         });
@@ -175,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         recordingsList.innerHTML = '';
         recordingsToRender.forEach(rec => {
             const isPlaying = rec.id === currentlyPlayingId && !audioPlayer.paused;
-            li = document.createElement('li');
+            const li = document.createElement('li');
             li.dataset.id = rec.id;
             li.draggable = true;
             if (rec.id === currentlyPlayingId) li.classList.add('playing');
@@ -183,9 +181,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="rec-info"><strong>${rec.name}</strong></div>
                 <div class="player-container">
                     <div class="progress-container">
-                        <div class="time-display current-time">0:00</div>
+                        <div class="time-display current-time">${formatTime(rec.lastPosition)}</div>
                         <div class="progress-bar-wrapper">
-                            <div class="progress-bar"><div class="progress"></div></div>
+                            <div class="progress-bar"><div class="progress" style="width: ${rec.duration ? (rec.lastPosition / rec.duration) * 100 : 0}%"></div></div>
                         </div>
                         <div class="time-display total-time">${formatTime(rec.duration)}</div>
                     </div>
@@ -263,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const clickX = e.clientX - rect.left;
         const width = progressBarWrapper.clientWidth;
         const newTime = (clickX / width) * recording.duration;
-        recording.lastPosition = newTime; // Guardamos la nueva posición
+        recording.lastPosition = newTime;
 
         if (currentlyPlayingId === id && audioPlayer.src) {
             audioPlayer.currentTime = newTime;
@@ -288,7 +286,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
-    // ... (sin cambios en esta sección)
     recordingsList.addEventListener('dragstart', (e) => {
         const li = e.target.closest('li[data-id]');
         if (li) { e.target.classList.add('dragging'); }
@@ -330,7 +327,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 8. ATRIBUTOS DE TECLADO Y CONFIGURACIÓN ---
-    // ... (sin cambios en esta sección, excepto la llamada a handleStop)
     function initShortcuts() {
         shortcutList.innerHTML = '';
         Object.entries(shortcutActions).forEach(([action, label]) => {
@@ -367,6 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
     function loadSettings() {
         const saved = localStorage.getItem('playerSettings');
         const defaults = { speed: 1.0, repeat: 'none', rewindSeconds: 1, shortcuts: {}, sortDesc: true };
@@ -381,7 +378,6 @@ document.addEventListener('DOMContentLoaded', () => {
     rewindControl.addEventListener('change', e => { settings.rewindSeconds = parseInt(e.target.value, 10) || 1; saveSettings(); });
     resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
-
     // --- 9. EVENTOS DEL MOTOR DE AUDIO ---
     function updatePlayerUI() {
         for (const li of recordingsList.children) {
@@ -394,20 +390,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- MEJORA: Restaurar la posición guardada al cargar el audio ---
     audioPlayer.addEventListener('loadedmetadata', () => {
         const rec = recordings.find(r => r.id === currentlyPlayingId);
         if (rec && (isNaN(rec.duration) || rec.duration === 0)) {
             rec.duration = audioPlayer.duration;
-            renderRecordings(); // Re-render para mostrar la duración correcta
+            renderRecordings();
         }
         
-        // La búsqueda manual (seek) tiene prioridad
         if (seekToTime !== null) {
             audioPlayer.currentTime = seekToTime;
             seekToTime = null;
         } else if (rec && rec.lastPosition > 0) {
-            // Si no, usamos la posición guardada
             audioPlayer.currentTime = rec.lastPosition;
         }
     });
@@ -429,7 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
     audioPlayer.addEventListener('ended', () => {
         const wasPlayingId = currentlyPlayingId;
         const rec = recordings.find(r => r.id === wasPlayingId);
-        if (rec) rec.lastPosition = 0; // Al terminar, se resetea la posición
+        if (rec) rec.lastPosition = 0; 
 
         const finishedLi = recordingsList.querySelector(`li[data-id='${wasPlayingId}']`);
         if (finishedLi) {
@@ -457,6 +450,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     clearAllButton.addEventListener('click', () => { if (recordings.length > 0 && confirm('¿Borrar TODAS las grabaciones?')) { recordings = []; renderRecordings(); } });
     clearTranscriptsButton.addEventListener('click', () => { recordings.forEach(rec => rec.transcript = null); renderRecordings(); });
+    
+    // --- NUEVA LÓGICA PARA EL BOTÓN "DETENER TODO" ---
+    stopAllButton.addEventListener('click', () => {
+        // 1. Detener el reproductor principal
+        audioPlayer.pause();
+        audioPlayer.currentTime = 0;
+        
+        // 2. Quitar la selección del audio activo
+        currentlyPlayingId = null;
+        
+        // 3. Resetear la posición guardada de TODAS las grabaciones
+        recordings.forEach(rec => {
+            rec.lastPosition = 0;
+        });
+        
+        // 4. Volver a renderizar la lista para que refleje los cambios
+        renderRecordings();
+    });
 
     // --- 10. INICIALIZACIÓN ---
     function init() {
