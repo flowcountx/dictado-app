@@ -258,7 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
     // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
     recordingsList.addEventListener('dragstart', (e) => {
         const li = e.target.closest('li[data-id]');
@@ -378,7 +377,6 @@ document.addEventListener('DOMContentLoaded', () => {
     audioPlayer.addEventListener('play', updatePlayerUI);
     audioPlayer.addEventListener('pause', updatePlayerUI);
 
-    // --- CORRECCIÓN CLAVE EN LA LÓGICA DE REPRODUCCIÓN ---
     audioPlayer.addEventListener('ended', () => {
         const wasPlayingId = currentlyPlayingId;
 
@@ -391,22 +389,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const sortedIds = getSortedIds();
         const lastIndex = sortedIds.indexOf(wasPlayingId);
 
-        // Lógica de repetición reestructurada y corregida
         if (settings.repeat === 'one') {
-            // Caso 1: Repetir el mismo audio
             playRecording(wasPlayingId);
         } else if (settings.repeat === 'all') {
-            // Caso 2: Bucle de lista
             if (lastIndex < sortedIds.length - 1) {
-                // Si no es el último, reproducir el siguiente
                 handleNext();
             } else {
-                // Si es el último, volver al primero
                 playRecording(sortedIds[0]);
             }
         } else {
-            // Caso 3 (por defecto 'none'): Detener la reproducción
-            currentlyPlayingId = null;
+            // --- MODIFICACIÓN CLAVE ---
+            // En modo 'ninguna', no hacemos `currentlyPlayingId = null`.
+            // Simplemente llamamos a updatePlayerUI() para que el botón cambie a '▶',
+            // pero el resaltado del <li> se mantenga.
             updatePlayerUI();
         }
     });
