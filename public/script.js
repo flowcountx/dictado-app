@@ -222,15 +222,32 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
     }
 
+    // --- CÓDIGO CORREGIDO ---
     function handleSeek(e, id) {
         const recording = recordings.find(r => r.id === id);
-        if (!recording) return;
+        if (!recording || isNaN(recording.duration)) return;
+
         const progressBarWrapper = e.currentTarget.closest('.progress-bar-wrapper');
+        if (!progressBarWrapper) return;
+
         const rect = progressBarWrapper.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
         const width = progressBarWrapper.clientWidth;
-        seekToTime = (clickX / width) * recording.duration;
-        playRecording(id);
+        const newTime = (clickX / width) * recording.duration;
+
+        // Si el audio que se quiere buscar es el que ya está sonando
+        if (currentlyPlayingId === id && audioPlayer.src) {
+            audioPlayer.currentTime = newTime;
+            // Nos aseguramos de que esté sonando si estaba en pausa
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+            }
+        } else {
+            // Si es un audio nuevo, usamos la variable global para que
+            // el evento 'loadedmetadata' la recoja después de cambiar el src.
+            seekToTime = newTime;
+            playRecording(id);
+        }
     }
 
     // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
