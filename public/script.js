@@ -222,13 +222,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
     }
 
-    // --- CÓDIGO CORREGIDO Y MEJORADO ---
     function handleSeek(e, id) {
         const recording = recordings.find(r => r.id === id);
         if (!recording || isNaN(recording.duration)) return;
 
-        // 1. Guardamos el estado de reproducción ANTES de hacer cualquier cambio.
-        // Si el audio clickeado no es el actual, consideramos que "estaba pausado".
         const wasPaused = (currentlyPlayingId === id) ? audioPlayer.paused : true;
 
         const progressBarWrapper = e.target.closest('.progress-bar-wrapper');
@@ -239,25 +236,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const width = progressBarWrapper.clientWidth;
         const newTime = (clickX / width) * recording.duration;
 
-        // 2. Si es el audio actual, simplemente cambiamos su tiempo.
         if (currentlyPlayingId === id && audioPlayer.src) {
             audioPlayer.currentTime = newTime;
         } else {
-        // 3. Si es un audio nuevo, lo cargamos y preparamos el tiempo de búsqueda.
             currentlyPlayingId = id;
             audioPlayer.src = recording.url;
             seekToTime = newTime;
-            // Actualizamos la UI para que se vea como "activo" pero no lo reproducimos.
             updatePlayerUI();
         }
 
-        // 4. Si el audio NO estaba pausado, continuamos la reproducción.
-        // Si estaba pausado, la acción termina aquí, manteniendo la pausa.
         if (!wasPaused) {
             audioPlayer.play();
         }
         
-        // 5. Actualizamos manualmente la UI para dar feedback visual inmediato.
         const li = recordingsList.querySelector(`li[data-id='${id}']`);
         if(li) {
             const progress = li.querySelector('.progress');
@@ -368,7 +359,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const playPauseBtn = li.querySelector('.play-pause-btn');
             const isPlaying = id === currentlyPlayingId && !audioPlayer.paused;
             const isActive = id === currentlyPlayingId;
-            li.classList.toggle('playing', isActive); // 'playing' class now means 'active'
+            li.classList.toggle('playing', isActive);
             if(playPauseBtn) playPauseBtn.textContent = isPlaying ? '❚❚' : '▶';
         }
     }
@@ -386,26 +377,40 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     audioPlayer.addEventListener('play', updatePlayerUI);
     audioPlayer.addEventListener('pause', updatePlayerUI);
+
+    // --- CORRECCIÓN CLAVE EN LA LÓGICA DE REPRODUCCIÓN ---
     audioPlayer.addEventListener('ended', () => {
         const wasPlayingId = currentlyPlayingId;
-        
+
         const finishedLi = recordingsList.querySelector(`li[data-id='${wasPlayingId}']`);
         if (finishedLi) {
             finishedLi.querySelector('.progress').style.width = '0%';
             finishedLi.querySelector('.current-time').textContent = '0:00';
         }
-        
+
         const sortedIds = getSortedIds();
         const lastIndex = sortedIds.indexOf(wasPlayingId);
 
-        if (settings.repeat === 'one') { playRecording(wasPlayingId); }
-        else if (lastIndex < sortedIds.length - 1) { handleNext(); }
-        else if (settings.repeat === 'all' && lastIndex === sortedIds.length - 1) { playRecording(sortedIds[0]); }
-        else {
-             currentlyPlayingId = null;
-             updatePlayerUI();
+        // Lógica de repetición reestructurada y corregida
+        if (settings.repeat === 'one') {
+            // Caso 1: Repetir el mismo audio
+            playRecording(wasPlayingId);
+        } else if (settings.repeat === 'all') {
+            // Caso 2: Bucle de lista
+            if (lastIndex < sortedIds.length - 1) {
+                // Si no es el último, reproducir el siguiente
+                handleNext();
+            } else {
+                // Si es el último, volver al primero
+                playRecording(sortedIds[0]);
+            }
+        } else {
+            // Caso 3 (por defecto 'none'): Detener la reproducción
+            currentlyPlayingId = null;
+            updatePlayerUI();
         }
     });
+
     audioPlayer.addEventListener('timeupdate', () => {
         if (!currentlyPlayingId) return;
         const li = recordingsList.querySelector(`li[data-id='${currentlyPlayingId}']`);
