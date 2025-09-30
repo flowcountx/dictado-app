@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM ---
+    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM (COMPLETO) ---
     const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const stopButton = document.getElementById('stopButton');
@@ -92,6 +92,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sortedIds.length > 0) playRecording(sortedIds[0]);
             return;
         }
+        
+        // CORRECCIÓN CLAVE: Lógica explícita para pausar
         if (currentlyPlayingId === targetId && !audioPlayer.paused) {
             audioPlayer.pause();
         } else {
@@ -216,16 +218,24 @@ document.addEventListener('DOMContentLoaded', () => {
         button.textContent = '¡Copiado!';
         setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
     }
-
+    
     function handleSeek(e, id) {
         const recording = recordings.find(r => r.id === id);
         if (!recording) return;
-        const progressBarWrapper = e.currentTarget.closest('.progress-bar-wrapper');
+        const progressBarWrapper = e.target.closest('.progress-bar-wrapper');
         const rect = progressBarWrapper.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
         const width = progressBarWrapper.clientWidth;
-        seekToTime = (clickX / width) * recording.duration;
-        playRecording(id);
+        const newTime = (clickX / width) * recording.duration;
+        
+        // CORRECCIÓN CLAVE: Si es la canción actual, solo salta. Si es otra, cárgala y salta.
+        if (currentlyPlayingId === id) {
+            audioPlayer.currentTime = newTime;
+        } else {
+            // Guardamos el tiempo al que queremos saltar para usarlo después de cargar
+            seekToTime = newTime;
+            playRecording(id);
+        }
     }
 
     // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN (CON CORRECCIÓN) ---
@@ -328,6 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
     // --- 9. EVENTOS DEL MOTOR DE AUDIO (CON CORRECCIONES) ---
+    // CORRECCIÓN CLAVE: Nueva función ligera para actualizar la UI sin reconstruirla
     function updatePlayerUI() {
         for (const li of recordingsList.children) {
             const id = Number(li.dataset.id);
@@ -339,11 +350,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     audioPlayer.addEventListener('loadedmetadata', () => {
-        const rec = recordings.find(r => r.id === currentlyPlayingId);
-        if (rec && (isNaN(rec.duration) || rec.duration === 0)) {
-            rec.duration = audioPlayer.duration;
-            renderRecordings();
-        }
         if (seekToTime !== null) {
             audioPlayer.currentTime = seekToTime;
             seekToTime = null;
@@ -375,7 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const progress = li.querySelector('.progress');
         const currentTimeDisplay = li.querySelector('.current-time');
         const { currentTime, duration } = audioPlayer;
-        if (progress && duration > 0) progress.style.width = `${(currentTime / duration) * 100}%`;
+        if (progress) progress.style.width = `${(currentTime / duration) * 100}%`;
         if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentTime);
     });
     
