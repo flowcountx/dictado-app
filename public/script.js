@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM (COMPLETO) ---
+    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM ---
     const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const stopButton = document.getElementById('stopButton');
@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function playRecording(id) {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
+        audioPlayer.playbackRate = settings.speed;
         if (currentlyPlayingId !== id) {
             audioPlayer.src = rec.url;
         }
@@ -92,8 +93,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sortedIds.length > 0) playRecording(sortedIds[0]);
             return;
         }
-        
-        // CORRECCIÓN CLAVE: Lógica explícita para pausar
         if (currentlyPlayingId === targetId && !audioPlayer.paused) {
             audioPlayer.pause();
         } else {
@@ -114,6 +113,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentIndex = sortedIds.indexOf(currentlyPlayingId);
         if (currentIndex < sortedIds.length - 1) {
             playRecording(sortedIds[currentIndex + 1]);
+        } else if (settings.repeat === 'all') {
+            playRecording(sortedIds[0]);
         }
     }
     function handlePrevious() {
@@ -142,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settings.sortDesc) {
             recordingsToRender.sort((a, b) => b.id - a.id);
         }
+        const oldScroll = recordingsList.scrollTop;
         recordingsList.innerHTML = '';
         recordingsToRender.forEach(rec => {
             const isPlaying = rec.id === currentlyPlayingId && !audioPlayer.paused;
@@ -181,14 +183,14 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             recordingsList.appendChild(li);
         });
+        recordingsList.scrollTop = oldScroll;
     }
 
-    // --- 6. LÓGICA DE EVENTOS DE LA LISTA (CON SEEK CORREGIDO) ---
+    // --- 6. LÓGICA DE EVENTOS DE LA LISTA ---
     recordingsList.addEventListener('click', (e) => {
         const li = e.target.closest('li[data-id]');
         if (!li) return;
         const id = Number(li.dataset.id);
-
         if (e.target.matches('.play-pause-btn')) handlePlayPause(id);
         if (e.target.matches('.stop-btn')) handleStop();
         if (e.target.matches('.rewind-btn')) handleRewind();
@@ -218,30 +220,21 @@ document.addEventListener('DOMContentLoaded', () => {
         button.textContent = '¡Copiado!';
         setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
     }
-    
     function handleSeek(e, id) {
         const recording = recordings.find(r => r.id === id);
         if (!recording) return;
-        const progressBarWrapper = e.target.closest('.progress-bar-wrapper');
+        const progressBarWrapper = e.currentTarget.closest('.progress-bar-wrapper');
         const rect = progressBarWrapper.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
         const width = progressBarWrapper.clientWidth;
-        const newTime = (clickX / width) * recording.duration;
-        
-        // CORRECCIÓN CLAVE: Si es la canción actual, solo salta. Si es otra, cárgala y salta.
-        if (currentlyPlayingId === id) {
-            audioPlayer.currentTime = newTime;
-        } else {
-            // Guardamos el tiempo al que queremos saltar para usarlo después de cargar
-            seekToTime = newTime;
-            playRecording(id);
-        }
+        seekToTime = (clickX / width) * recording.duration;
+        playRecording(id);
     }
 
-    // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN (CON CORRECCIÓN) ---
+    // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
     recordingsList.addEventListener('dragstart', (e) => {
         const li = e.target.closest('li[data-id]');
-        if (li) { draggedItemId = Number(li.dataset.id); e.target.classList.add('dragging'); }
+        if (li) { e.target.classList.add('dragging'); }
     });
     recordingsList.addEventListener('dragend', (e) => e.target.classList.remove('dragging'));
     recordingsList.addEventListener('dragover', (e) => {
@@ -254,11 +247,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     recordingsList.addEventListener('drop', () => {
-        // CORRECCIÓN CLAVE: Actualizamos el array de datos para que coincida con el nuevo orden del DOM
         const newOrderIds = [...recordingsList.querySelectorAll('li[data-id]')].map(li => Number(li.dataset.id));
         recordings.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
-
-        // Desactivamos la ordenación automática al reordenar manualmente
         sortToggle.checked = false;
         settings.sortDesc = false;
         saveSettings();
@@ -278,11 +268,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRecordings();
     });
     function getSortedIds() {
-        if (settings.sortDesc) {
-            return [...recordings].sort((a,b) => b.id - a.id).map(r => r.id);
-        }
-        // Devuelve el orden del array de datos, que ahora es el correcto
-        return recordings.map(r => r.id);
+        const currentIds = [...recordingsList.querySelectorAll('li')].map(li => Number(li.dataset.id));
+        return currentIds;
     }
 
     // --- 8. ATRIBUTOS DE TECLADO Y CONFIGURACIÓN ---
@@ -338,7 +325,6 @@ document.addEventListener('DOMContentLoaded', () => {
     resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
     // --- 9. EVENTOS DEL MOTOR DE AUDIO (CON CORRECCIONES) ---
-    // CORRECCIÓN CLAVE: Nueva función ligera para actualizar la UI sin reconstruirla
     function updatePlayerUI() {
         for (const li of recordingsList.children) {
             const id = Number(li.dataset.id);
@@ -350,6 +336,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     audioPlayer.addEventListener('loadedmetadata', () => {
+        const rec = recordings.find(r => r.id === currentlyPlayingId);
+        if (rec && (isNaN(rec.duration) || rec.duration === 0)) {
+            rec.duration = audioPlayer.duration;
+            renderRecordings();
+        }
         if (seekToTime !== null) {
             audioPlayer.currentTime = seekToTime;
             seekToTime = null;
@@ -381,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const progress = li.querySelector('.progress');
         const currentTimeDisplay = li.querySelector('.current-time');
         const { currentTime, duration } = audioPlayer;
-        if (progress) progress.style.width = `${(currentTime / duration) * 100}%`;
+        if (progress && duration > 0) progress.style.width = `${(currentTime / duration) * 100}%`;
         if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentTime);
     });
     
