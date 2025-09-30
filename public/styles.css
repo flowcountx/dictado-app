@@ -95,35 +95,19 @@ body.light-mode .main-controls button:disabled { background-color: #e0e0e0; }
 
 /* --- 5. LISTA DE GRABACIONES Y REPRODUCTOR AVANZADO --- */
 .recordings-header {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 15px;
-    margin-top: 40px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 15px; margin-top: 40px;
 }
-
-.header-controls {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 15px;
-}
-
+.header-controls { display: flex; justify-content: space-between; width: 100%; align-items: center; flex-wrap: wrap; gap: 15px; }
 .sort-controls { display: flex; align-items: center; gap: 8px; font-size: 0.9em; cursor: pointer; }
 #recordingsList { list-style: none; padding: 0; }
 #recordingsList li {
     background-color: var(--surface-color); margin-bottom: 15px; padding: 15px 20px;
     border-radius: 8px; box-shadow: 0 2px 4px var(--shadow-color); cursor: grab;
     transition: opacity 0.2s, background-color 0.3s, border-left-color 0.3s;
-    border-left: 4px solid transparent; /* Borde para el indicador */
+    border-left: 4px solid transparent;
 }
 #recordingsList li.dragging { opacity: 0.5; cursor: grabbing; }
-#recordingsList li.playing {
-    background-color: #2a2a2a;
-    border-left-color: var(--primary-color);
-}
+#recordingsList li.playing { background-color: #2a2a2a; border-left-color: var(--primary-color); }
 body.light-mode #recordingsList li.playing { background-color: #e8f5e9; }
 
 .rec-info { font-weight: bold; margin-bottom: 15px; }
@@ -210,5 +194,5 @@ body.light-mode .transcription { background-color: #f9f9f9; }
 .batch-actions button {
     background: none; border: 1px solid var(--secondary-text-color);
     color: var(--secondary-text-color); padding: 8px 12px;
-    border-radius: 5px; cursor: pointer; margin-left: 10px;
+    border-radius: 5px; cursor: pointer;
 }

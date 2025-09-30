@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM (COMPLETO Y CORRECTO) ---
-    // (Incluye todos los selectores necesarios)
+    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM ---
     const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const stopButton = document.getElementById('stopButton');
@@ -33,16 +32,122 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let draggedItemId = null;
 
-    // --- 3. LÓGICA DE GRABACIÓN Y CARGA (RESTAURADA) ---
-    recordButton.addEventListener('click', async () => { /* ... (código de grabación estable) ... */ });
-    pauseButton.addEventListener('click', () => { /* ... (código de pausa estable) ... */ });
-    stopButton.addEventListener('click', () => { /* ... (código de detener estable) ... */ });
+    // --- 3. LÓGICA DE GRABACIÓN Y CARGA ---
+    recordButton.addEventListener('click', async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                const name = `Grabación - ${new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}`;
+                addRecordingToList(audioBlob, name);
+                audioChunks = [];
+                stream.getTracks().forEach(track => track.stop());
+            };
+            mediaRecorder.start();
+            statusDiv.textContent = 'Grabando...';
+            updateButtonStates(true, false, false);
+        } catch (err) { statusDiv.textContent = 'Error: No se pudo acceder al micrófono.'; }
+    });
+
+    pauseButton.addEventListener('click', () => {
+        if (!mediaRecorder) return;
+        if (mediaRecorder.state === 'recording') {
+            mediaRecorder.pause();
+            statusDiv.textContent = 'Pausado';
+        } else if (mediaRecorder.state === 'paused') {
+            mediaRecorder.resume();
+            statusDiv.textContent = 'Grabando...';
+        }
+    });
+
+    stopButton.addEventListener('click', () => {
+        if (!mediaRecorder) return;
+        mediaRecorder.stop();
+        statusDiv.textContent = 'Grabación detenida.';
+        updateButtonStates(false, true, true);
+    });
+
+    function updateButtonStates(isRecording, isPausedDisabled, isStopDisabled) {
+        recordButton.disabled = isRecording;
+        pauseButton.disabled = isPausedDisabled;
+        stopButton.disabled = isStopDisabled;
+    }
+
     dropZone.addEventListener('dragover', e => e.preventDefault());
     dropZone.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files); });
     fileInput.addEventListener('change', () => handleFiles(fileInput.files));
-    function handleFiles(files) { /* ... (código de manejo de archivos estable) ... */ }
+    function handleFiles(files) {
+        Array.from(files).filter(file => file.type.startsWith('audio/')).forEach(file => {
+            addRecordingToList(file, file.name);
+        });
+    }
 
-    // --- 4. RENDERIZADO Y GESTIÓN DE LA LISTA (CON NUEVAS FUNCIONES) ---
+    // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO ---
+    function playRecording(id) {
+        const rec = recordings.find(r => r.id === id);
+        if (!rec) return;
+        audioPlayer.src = rec.url;
+        audioPlayer.play();
+        currentlyPlayingId = id;
+    }
+
+    function handlePlayPause(idFromButton = null) {
+        const targetId = idFromButton || currentlyPlayingId;
+        if (!targetId) {
+            if (recordings.length > 0) playRecording(recordings.find(r => r.id === Number(recordingsList.querySelector('li').dataset.id)).id);
+            return;
+        }
+        if (currentlyPlayingId === targetId && !audioPlayer.paused) {
+            audioPlayer.pause();
+        } else {
+            playRecording(targetId);
+        }
+    }
+
+    function handleStop() {
+        if (!currentlyPlayingId) return;
+        audioPlayer.pause();
+        audioPlayer.currentTime = 0;
+    }
+
+    function handleRewind() {
+        if (!currentlyPlayingId) return;
+        audioPlayer.currentTime = Math.max(0, audioPlayer.currentTime - settings.rewindSeconds);
+    }
+
+    function handleNext() {
+        if (recordings.length === 0) return;
+        const sortedIds = [...recordingsList.querySelectorAll('li')].map(li => Number(li.dataset.id));
+        const currentIndex = sortedIds.indexOf(currentlyPlayingId);
+        if (currentIndex < sortedIds.length - 1) {
+            playRecording(sortedIds[currentIndex + 1]);
+        }
+    }
+
+    function handlePrevious() {
+        if (recordings.length === 0) return;
+        const sortedIds = [...recordingsList.querySelectorAll('li')].map(li => Number(li.dataset.id));
+        const currentIndex = sortedIds.indexOf(currentlyPlayingId);
+        if (currentIndex > 0) {
+            playRecording(sortedIds[currentIndex - 1]);
+        }
+    }
+    
+    // --- 5. RENDERIZADO Y GESTIÓN DE LA LISTA ---
+    function addRecordingToList(audioBlob, name) {
+        const url = URL.createObjectURL(audioBlob);
+        const tempAudio = new Audio(url);
+        tempAudio.addEventListener('loadedmetadata', () => {
+            recordings.push({ 
+                id: Date.now(), name, url, blob: audioBlob, 
+                transcript: null, duration: tempAudio.duration 
+            });
+            renderRecordings();
+        });
+    }
+
     function renderRecordings() {
         const sortedRecordings = [...recordings].sort((a, b) => settings.sortDesc ? b.id - a.id : a.id - b.id);
         recordingsList.innerHTML = '';
@@ -74,18 +179,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="transcribeBtn">Transcribir</button>
                     <a href="${rec.url}" download="${rec.name}.wav" class="downloadLink">Descargar</a>
                 </div>
-                <!-- ... (resto del HTML, incluyendo transcripción) ... -->
+                ${rec.transcript !== null 
+                    ? `<div class="transcription-wrapper">
+                         <p class="transcription">${rec.transcript}</p>
+                         <button class="copyBtn">Copiar</button>
+                       </div>` 
+                    : `<p class="transcription-status"></p>`
+                }
             `;
             recordingsList.appendChild(li);
         });
     }
 
-    // --- 5. LÓGICA DE EVENTOS DE LA LISTA (ROBUSTA) ---
+    // --- 6. LÓGICA DE EVENTOS DE LA LISTA ---
     recordingsList.addEventListener('click', (e) => {
         const li = e.target.closest('li[data-id]');
         if (!li) return;
         const id = Number(li.dataset.id);
-
         if (e.target.matches('.play-pause-btn')) handlePlayPause(id);
         if (e.target.matches('.stop-btn')) handleStop();
         if (e.target.matches('.rewind-btn')) handleRewind();
@@ -96,12 +206,134 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.matches('.progress-bar-wrapper')) handleSeek(e, id);
     });
     
-    // --- 6. FUNCIONES DE MANEJO (RESTAURADAS Y COMPLETAS) ---
-    function handleSeek(e, id) { /* ... (lógica de seek) ... */ }
-    async function handleTranscribe(id, button) { /* ... (lógica de transcripción estable) ... */ }
-    async function handleCopy(id, button) { /* ... (lógica de copia estable) ... */ }
+    async function handleTranscribe(id, button) {
+        const recording = recordings.find(r => r.id === id);
+        button.disabled = true;
+        const statusP = button.closest('li').querySelector('.transcription-status');
+        if (statusP) statusP.textContent = 'Transcribiendo...';
+        try {
+            const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: recording.blob });
+            if (!response.ok) throw new Error(`Error: ${response.statusText}`);
+            const data = await response.json();
+            recording.transcript = data.results.channels[0].alternatives[0].transcript || "(No se pudo transcribir)";
+        } catch (error) { if (statusP) statusP.textContent = 'Error al transcribir.';
+        } finally { renderRecordings(); }
+    }
+    async function handleCopy(id, button) {
+        const recording = recordings.find(r => r.id === id);
+        await navigator.clipboard.writeText(recording.transcript);
+        button.textContent = '¡Copiado!';
+        setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
+    }
+    function handleSeek(e, id) {
+        const recording = recordings.find(r => r.id === id);
+        if (currentlyPlayingId !== id) playRecording(id);
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const width = e.currentTarget.clientWidth;
+        audioPlayer.currentTime = (clickX / width) * recording.duration;
+    }
 
-    // --- 7. EVENTOS DEL MOTOR DE AUDIO (CON ACTUALIZACIÓN DE UI) ---
+    // --- 7. LÓGICA DE REORDENAMIENTO, ATRIBUTOS, CONFIGURACIÓN ---
+    recordingsList.addEventListener('dragstart', (e) => {
+        const li = e.target.closest('li[data-id]');
+        if (li) { draggedItemId = Number(li.dataset.id); e.target.classList.add('dragging'); }
+    });
+    recordingsList.addEventListener('dragend', (e) => e.target.classList.remove('dragging'));
+    recordingsList.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const afterElement = getDragAfterElement(recordingsList, e.clientY);
+        const dragging = document.querySelector('.dragging');
+        if (dragging) {
+            if (afterElement == null) { recordingsList.appendChild(dragging); } 
+            else { recordingsList.insertBefore(dragging, afterElement); }
+        }
+    });
+    recordingsList.addEventListener('drop', () => {
+        const newOrderIds = [...recordingsList.querySelectorAll('li[data-id]')].map(li => Number(li.dataset.id));
+        recordings.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+        sortToggle.checked = false;
+        settings.sortDesc = false;
+        saveSettings();
+    });
+    function getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('li:not(.dragging)')];
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; } 
+            else { return closest; }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+    sortToggle.addEventListener('change', e => {
+        settings.sortDesc = e.target.checked;
+        saveSettings();
+        renderRecordings();
+    });
+
+    function initShortcuts() {
+        shortcutList.innerHTML = '';
+        Object.entries(shortcutActions).forEach(([action, label]) => {
+            const key = settings.shortcuts[action] || 'Sin asignar';
+            shortcutList.innerHTML += `<div class="shortcut-item"><div class="shortcut-label">${label}:</div><div class="shortcut-key">${key}</div><button class="shortcut-set-btn" data-action="${action}">Establecer</button></div>`;
+        });
+    }
+    shortcutList.addEventListener('click', (e) => {
+        if (e.target.matches('.shortcut-set-btn')) {
+            const action = e.target.dataset.action;
+            if (listeningForShortcut === action) {
+                listeningForShortcut = null;
+                e.target.textContent = 'Establecer'; e.target.classList.remove('listening');
+            } else {
+                document.querySelectorAll('.shortcut-set-btn.listening').forEach(btn => { btn.classList.remove('listening'); btn.textContent = 'Establecer'; });
+                listeningForShortcut = action;
+                e.target.textContent = 'Escuchando...'; e.target.classList.add('listening');
+            }
+        }
+    });
+    window.addEventListener('keydown', (e) => {
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
+        if (listeningForShortcut) {
+            e.preventDefault(); const key = e.code;
+            Object.keys(settings.shortcuts).forEach(act => { if (settings.shortcuts[act] === key) delete settings.shortcuts[act]; });
+            settings.shortcuts[listeningForShortcut] = key;
+            saveSettings(); initShortcuts(); listeningForShortcut = null;
+        } else {
+            const action = Object.keys(settings.shortcuts).find(act => settings.shortcuts[act] === e.code);
+            if (action) {
+                e.preventDefault();
+                const actionFunctions = { playPause: handlePlayPause, stop: handleStop, rewind: handleRewind, next: handleNext, previous: handlePrevious };
+                if (actionFunctions[action]) actionFunctions[action]();
+            }
+        }
+    });
+
+    function loadSettings() {
+        const saved = localStorage.getItem('playerSettings');
+        const defaults = { speed: 1.0, repeat: 'none', rewindSeconds: 5, shortcuts: {}, sortDesc: true };
+        settings = saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+        speedControl.value = settings.speed; speedValue.textContent = `${Number(settings.speed).toFixed(1)}x`; audioPlayer.playbackRate = settings.speed;
+        repeatControl.value = settings.repeat; rewindControl.value = settings.rewindSeconds; sortToggle.checked = settings.sortDesc;
+        audioPlayer.loop = (settings.repeat === 'one');
+    }
+    function saveSettings() { localStorage.setItem('playerSettings', JSON.stringify(settings)); }
+    speedControl.addEventListener('input', e => { settings.speed = parseFloat(e.target.value); audioPlayer.playbackRate = settings.speed; speedValue.textContent = `${settings.speed.toFixed(1)}x`; saveSettings(); });
+    repeatControl.addEventListener('change', e => { settings.repeat = e.target.value; audioPlayer.loop = (settings.repeat === 'one'); saveSettings(); });
+    rewindControl.addEventListener('change', e => { settings.rewindSeconds = parseInt(e.target.value, 10) || 5; saveSettings(); });
+    resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
+
+    // --- 8. EVENTOS DEL MOTOR DE AUDIO Y BOTONES DE LIMPIEZA ---
+    audioPlayer.addEventListener('play', () => renderRecordings());
+    audioPlayer.addEventListener('pause', () => renderRecordings());
+    audioPlayer.addEventListener('ended', () => {
+        const sortedIds = [...recordingsList.querySelectorAll('li')].map(li => Number(li.dataset.id));
+        const currentIndex = sortedIds.indexOf(currentlyPlayingId);
+        currentlyPlayingId = null;
+        if (settings.repeat === 'one' && currentIndex !== -1) { playRecording(sortedIds[currentIndex]); } 
+        else if (settings.repeat === 'all' && currentIndex < sortedIds.length - 1) { handleNext(); } 
+        else if (settings.repeat === 'all' && currentIndex === sortedIds.length - 1) { playRecording(sortedIds[0]); } 
+        else { renderRecordings(); }
+    });
     audioPlayer.addEventListener('timeupdate', () => {
         if (!currentlyPlayingId) return;
         const li = recordingsList.querySelector(`li[data-id='${currentlyPlayingId}']`);
@@ -112,16 +344,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (progress) progress.style.width = `${(currentTime / duration) * 100}%`;
         if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentTime);
     });
+    function formatTime(seconds) {
+        const min = Math.floor(seconds / 60); const sec = Math.floor(seconds % 60).toString().padStart(2, '0');
+        return isNaN(min) || isNaN(sec) ? '0:00' : `${min}:${sec}`;
+    }
+    clearAllButton.addEventListener('click', () => { if (recordings.length > 0 && confirm('¿Borrar TODAS las grabaciones?')) { recordings = []; renderRecordings(); } });
+    clearTranscriptsButton.addEventListener('click', () => { recordings.forEach(rec => rec.transcript = null); renderRecordings(); });
 
-    // --- 8. LÓGICA DE ORDENACIÓN Y BOTONES DE LIMPIEZA (RESTAURADOS) ---
-    sortToggle.addEventListener('change', e => {
-        settings.sortDesc = e.target.checked;
-        saveSettings();
+    // --- 9. INICIALIZACIÓN ---
+    function init() {
+        loadSettings();
+        initShortcuts();
         renderRecordings();
+        updateButtonStates(false, true, true);
+        loadTheme();
+    }
+    themeToggle.addEventListener('change', () => {
+        document.body.classList.toggle('dark-mode', !themeToggle.checked);
+        document.body.classList.toggle('light-mode', themeToggle.checked);
+        localStorage.setItem('theme', themeToggle.checked ? 'light' : 'dark');
     });
-    clearAllButton.addEventListener('click', () => { /* ... (lógica de limpieza estable) ... */ });
-    clearTranscriptsButton.addEventListener('click', () => { /* ... (lógica de limpieza estable) ... */ });
-
-    // --- 9. DRAG & DROP, ATRIBUTOS, CONFIGURACIÓN E INICIALIZACIÓN ---
-    // (Todo el código para estas secciones, que ya era estable, se mantiene)
+    function loadTheme() {
+        if (localStorage.getItem('theme') === 'light') {
+            themeToggle.checked = true;
+            document.body.classList.remove('dark-mode');
+            document.body.classList.add('light-mode');
+        }
+    }
+    init();
 });
