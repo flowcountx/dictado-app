@@ -75,17 +75,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO (CON CORRECCIONES) ---
+    // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO (CON CORRECCIÓN DE VELOCIDAD) ---
     function playRecording(id) {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
+        
+        // CORRECCIÓN CLAVE: Aplicar la velocidad de reproducción siempre
         audioPlayer.playbackRate = settings.speed;
+
         if (currentlyPlayingId !== id) {
             audioPlayer.src = rec.url;
         }
         audioPlayer.play();
         currentlyPlayingId = id;
     }
+
     function handlePlayPause(idFromButton = null) {
         const targetId = idFromButton || currentlyPlayingId;
         if (!targetId) {
@@ -110,15 +114,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function handleNext() {
         const sortedIds = getSortedIds();
+        if (sortedIds.length < 2 && settings.repeat !== 'all') return;
         const currentIndex = sortedIds.indexOf(currentlyPlayingId);
         if (currentIndex < sortedIds.length - 1) {
             playRecording(sortedIds[currentIndex + 1]);
-        } else if (settings.repeat === 'all') {
+        } else if (settings.repeat === 'all') { // Si es la última y hay que repetir, va a la primera
             playRecording(sortedIds[0]);
         }
     }
     function handlePrevious() {
         const sortedIds = getSortedIds();
+        if (sortedIds.length < 2) return;
         const currentIndex = sortedIds.indexOf(currentlyPlayingId);
         if (currentIndex > 0) {
             playRecording(sortedIds[currentIndex - 1]);
@@ -319,8 +325,17 @@ document.addEventListener('DOMContentLoaded', () => {
         audioPlayer.loop = (settings.repeat === 'one');
     }
     function saveSettings() { localStorage.setItem('playerSettings', JSON.stringify(settings)); }
-    speedControl.addEventListener('input', e => { settings.speed = parseFloat(e.target.value); audioPlayer.playbackRate = settings.speed; speedValue.textContent = `${settings.speed.toFixed(1)}x`; saveSettings(); });
-    repeatControl.addEventListener('change', e => { settings.repeat = e.target.value; audioPlayer.loop = (settings.repeat === 'one'); saveSettings(); });
+    speedControl.addEventListener('input', e => {
+        settings.speed = parseFloat(e.target.value);
+        audioPlayer.playbackRate = settings.speed;
+        speedValue.textContent = `${settings.speed.toFixed(1)}x`;
+        saveSettings();
+    });
+    repeatControl.addEventListener('change', e => {
+        settings.repeat = e.target.value;
+        audioPlayer.loop = (settings.repeat === 'one');
+        saveSettings();
+    });
     rewindControl.addEventListener('change', e => { settings.rewindSeconds = parseInt(e.target.value, 10) || 1; saveSettings(); });
     resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
@@ -348,6 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     audioPlayer.addEventListener('play', updatePlayerUI);
     audioPlayer.addEventListener('pause', updatePlayerUI);
+
     audioPlayer.addEventListener('ended', () => {
         const wasPlayingId = currentlyPlayingId;
         currentlyPlayingId = null;
@@ -359,12 +375,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updatePlayerUI();
 
-        const sortedIds = getSortedIds();
-        const lastIndex = sortedIds.indexOf(wasPlayingId);
-        if (settings.repeat === 'one') { playRecording(wasPlayingId); }
-        else if (settings.repeat === 'all' && lastIndex < sortedIds.length - 1) { handleNext(); }
-        else if (settings.repeat === 'all' && lastIndex === sortedIds.length - 1) { playRecording(sortedIds[0]); }
+        if (settings.repeat === 'one') {
+            playRecording(wasPlayingId);
+        } else if (settings.repeat === 'all') {
+            handleNext();
+        }
     });
+
     audioPlayer.addEventListener('timeupdate', () => {
         if (!currentlyPlayingId) return;
         const li = recordingsList.querySelector(`li[data-id='${currentlyPlayingId}']`);
