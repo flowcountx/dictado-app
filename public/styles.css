@@ -1,71 +1,179 @@
-/* ... (Sección 1 y 2: Paleta de Colores y Estilos Globales - SIN CAMBIOS) ... */
-
-/* --- 3. SECCIONES DE ACCIÓN Y LISTA DE GRABACIONES --- */
-.action-section { /* ... (Sin cambios) ... */ }
-.recordings-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-top: 40px;
+/* --- 1. PALETA DE COLORES REFINADA --- */
+:root {
+    --bg-color: #121212;
+    --surface-color: #1e1e1e;
+    --primary-text-color: #e0e0e0;
+    --secondary-text-color: #b3b3b3;
+    --primary-color: #4db6ac; /* Turquesa/Verde azulado */
+    --record-color: #cf6679;
+    --pause-color: #fca130;
+    --stop-color: #64b5f6;
+    --shadow-color: rgba(0, 0, 0, 0.5);
+    --border-color: #333;
 }
-.sort-controls { display: flex; align-items: center; gap: 8px; font-size: 0.9em; }
 
-/* --- 4. NUEVOS CONTROLES DEL REPRODUCTOR PERSONALIZADO --- */
+body.light-mode {
+    --bg-color: #f0f2f5;
+    --surface-color: #ffffff;
+    --primary-text-color: #1a2b4d;
+    --secondary-text-color: #5f6368;
+    --primary-color: #00796b; /* Turquesa oscuro para tema claro */
+    --record-color: #d93025;
+    --pause-color: #fca130;
+    --stop-color: #4285f4;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --border-color: #e0e0e0;
+}
+
+/* --- 2. ESTILOS GLOBALES Y DE CABECERA --- */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--primary-text-color);
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 0 20px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 15px;
+    margin-bottom: 30px;
+}
+
+h1, h2, h3, h4 {
+    color: var(--primary-text-color);
+}
+
+/* --- 3. ESTRUCTURA DE SECCIONES DE ACCIÓN --- */
+.action-section {
+    background-color: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 8px var(--shadow-color);
+}
+
+.action-section h3 {
+    margin: -20px -20px 20px -20px;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 1.1em;
+}
+
+/* --- 4. CONTROLES DE GRABACIÓN Y CARGA --- */
+.main-controls { text-align: center; }
+.main-controls button {
+    background-color: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 50%; width: 60px; height: 60px; margin: 0 10px; cursor: pointer;
+    color: var(--primary-text-color); display: inline-flex; justify-content: center;
+    align-items: center; box-shadow: 0 4px 8px var(--shadow-color);
+    transition: transform 0.2s, background-color 0.2s;
+}
+.main-controls button:hover:not(:disabled) { transform: translateY(-3px); }
+.main-controls button:disabled {
+    color: #666; cursor: not-allowed; background-color: #2a2a2a; transform: none; box-shadow: none;
+}
+body.light-mode .main-controls button:disabled { background-color: #e0e0e0; }
+#recordButton:not(:disabled) { color: var(--record-color); }
+#pauseButton:not(:disabled) { color: var(--pause-color); }
+#stopButton:not(:disabled) { color: var(--stop-color); }
+
+#status { text-align: center; margin-top: 20px; color: var(--secondary-text-color); min-height: 1.2em; }
+.upload-section { text-align: center; }
+#dropZone { padding: 25px; border: 2px dashed var(--secondary-text-color); border-radius: 8px; transition: border-color 0.3s; }
+#dropZone:hover { border-color: var(--primary-color); }
+.file-label {
+    background-color: var(--primary-color); color: white; padding: 10px 20px;
+    border-radius: 5px; cursor: pointer; display: inline-block; margin-top: 10px;
+}
+
+/* --- 5. LISTA DE GRABACIONES Y REPRODUCTOR AVANZADO --- */
+.recordings-header { display: flex; justify-content: space-between; align-items: center; margin-top: 40px; }
+.sort-controls { display: flex; align-items: center; gap: 8px; font-size: 0.9em; cursor: pointer; }
+#recordingsList { list-style: none; padding: 0; }
 #recordingsList li {
-    /* ... (Estilos base de la tarjeta li) ... */
-    /* Añadimos feedback para el arrastre */
+    background-color: var(--surface-color); margin-bottom: 15px; padding: 15px 20px;
+    border-radius: 8px; box-shadow: 0 2px 4px var(--shadow-color); cursor: grab;
     transition: opacity 0.2s;
 }
-#recordingsList li.dragging { opacity: 0.5; }
+#recordingsList li.dragging { opacity: 0.5; cursor: grabbing; }
 
-.player-controls { display: flex; align-items: center; gap: 8px; }
+.rec-info { font-weight: bold; margin-bottom: 15px; }
+.custom-player { margin-bottom: 15px; }
+.player-controls { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .player-controls button {
     background: none; border: 1px solid var(--border-color);
     color: var(--secondary-text-color); border-radius: 50%;
-    width: 36px; height: 36px; cursor: pointer; font-size: 1.2em;
+    width: 36px; height: 36px; cursor: pointer; font-size: 1em;
     display: inline-flex; justify-content: center; align-items: center;
+    transition: background-color 0.2s, color 0.2s;
 }
+.player-controls button:hover { background-color: #333; }
 .player-controls .play-pause-btn {
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
-    width: 40px; height: 40px;
+    background-color: var(--primary-color); color: white;
+    border: none; width: 42px; height: 42px; font-size: 1.4em;
 }
+.player-controls .play-pause-btn:hover { background-color: var(--primary-color); filter: brightness(1.2); }
 
-/* --- 5. SECCIÓN DE CONFIGURACIÓN AVANZADA --- */
+/* --- 6. SECCIÓN DE CONFIGURACIÓN AVANZADA --- */
 .advanced-config {
     background-color: var(--surface-color); border: 1px solid var(--border-color);
     border-radius: 8px; margin-top: 40px; padding: 10px;
 }
-.advanced-config summary {
-    font-weight: bold; cursor: pointer; padding: 10px;
-}
-.config-content { padding: 15px; border-top: 1px solid var(--border-color); margin-top: 10px; }
-.config-item { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+.advanced-config summary { font-weight: bold; cursor: pointer; padding: 10px; }
+.config-content { padding: 20px; border-top: 1px solid var(--border-color); margin-top: 10px; }
+.config-item { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
 .config-item label { min-width: 150px; }
-input[type="range"] { flex-grow: 1; }
+input[type="range"] { flex-grow: 1; cursor: pointer; }
 input[type="number"], select {
     background-color: var(--bg-color); color: var(--primary-text-color);
     border: 1px solid var(--border-color); padding: 5px; border-radius: 4px;
 }
 
-/* --- 6. ATRIBUTOS DE TECLADO --- */
-.shortcut-instructions { font-size: 0.9em; color: var(--secondary-text-color); }
+/* --- 7. ATRIBUTOS DE TECLADO --- */
+.shortcut-instructions { font-size: 0.9em; color: var(--secondary-text-color); margin-top: 20px; }
 .shortcut-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .shortcut-label { flex-basis: 150px; }
 .shortcut-key {
     border: 1px solid var(--border-color); background-color: var(--bg-color);
-    padding: 5px 10px; border-radius: 4px; min-width: 100px; text-align: center;
+    padding: 5px 10px; border-radius: 4px; min-width: 100px; text-align: center; font-family: monospace;
 }
 .shortcut-set-btn {
     background-color: #333; color: var(--primary-text-color); border: 1px solid var(--border-color);
     padding: 5px 15px; border-radius: 5px; cursor: pointer;
 }
-.shortcut-set-btn.listening {
-    background-color: var(--primary-color); color: white;
-}
-
+.shortcut-set-btn.listening { background-color: var(--primary-color); color: white; }
 #resetShortcutsButton {
     background-color: var(--record-color); color: white; border: none;
     padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 20px;
 }
 
-/* (El resto de los estilos se mantienen igual) */
+/* --- 8. OTROS ESTILOS (TRANSCRIPCIÓN, ETC.) --- */
+.actions { display: flex; gap: 10px; }
+.actions button, .actions a {
+    background-color: #333; color: var(--primary-text-color); border: 1px solid var(--border-color);
+    padding: 8px 15px; border-radius: 5px; cursor: pointer; text-decoration: none; font-size: 0.9em; text-align: center;
+}
+body.light-mode .actions button, body.light-mode .actions a { background-color: #eee; }
+.actions a.downloadLink { background-color: var(--stop-color); color: white; }
+
+.transcription-wrapper { margin-top: 15px; display: flex; flex-direction: column; }
+.transcription {
+    padding: 15px; background-color: rgba(0,0,0,0.2);
+    border-left: 4px solid var(--primary-color); white-space: pre-wrap;
+    font-family: monospace; color: var(--secondary-text-color);
+}
+body.light-mode .transcription { background-color: #f9f9f9; }
+.copyBtn {
+    background-color: var(--surface-color); border: 1px solid var(--border-color);
+    color: var(--secondary-text-color); padding: 5px 10px; border-radius: 5px;
+    cursor: pointer; margin-top: 10px; align-self: flex-end; font-size: 0.8em;
+}
+.copyBtn:hover { color: var(--primary-text-color); }
+.transcription-status { color: var(--secondary-text-color); font-style: italic; margin-top: 10px; }
