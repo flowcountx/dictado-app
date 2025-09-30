@@ -85,7 +85,6 @@ document.addEventListener('DOMContentLoaded', () => {
         audioPlayer.play();
         currentlyPlayingId = id;
     }
-
     function handlePlayPause(idFromButton = null) {
         const targetId = idFromButton || currentlyPlayingId;
         if (!targetId) {
@@ -99,10 +98,31 @@ document.addEventListener('DOMContentLoaded', () => {
             playRecording(targetId);
         }
     }
-    function handleStop() { /* ... */ }
-    function handleRewind() { /* ... */ }
-    function handleNext() { /* ... */ }
-    function handlePrevious() { /* ... */ }
+    function handleStop() {
+        if (!currentlyPlayingId) return;
+        audioPlayer.pause();
+        audioPlayer.currentTime = 0;
+    }
+    function handleRewind() {
+        if (!currentlyPlayingId) return;
+        audioPlayer.currentTime = Math.max(0, audioPlayer.currentTime - settings.rewindSeconds);
+    }
+    function handleNext() {
+        const sortedIds = getSortedIds();
+        if (sortedIds.length === 0) return;
+        const currentIndex = sortedIds.indexOf(currentlyPlayingId);
+        if (currentIndex < sortedIds.length - 1) {
+            playRecording(sortedIds[currentIndex + 1]);
+        }
+    }
+    function handlePrevious() {
+        const sortedIds = getSortedIds();
+        if (sortedIds.length === 0) return;
+        const currentIndex = sortedIds.indexOf(currentlyPlayingId);
+        if (currentIndex > 0) {
+            playRecording(sortedIds[currentIndex - 1]);
+        }
+    }
     
     // --- 5. RENDERIZADO Y GESTIÓN DE LA LISTA ---
     function addRecordingToList(audioBlob, name) {
@@ -176,26 +196,54 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.matches('.previous-btn')) handlePrevious();
         if (e.target.matches('.transcribeBtn')) handleTranscribe(id, e.target);
         if (e.target.matches('.copyBtn')) handleCopy(id, e.target);
-        if (e.target.closest('.progress-bar-wrapper')) handleSeek(e.target.closest('.progress-bar-wrapper'), id);
+        if (e.target.closest('.progress-bar-wrapper')) handleSeek(e, id);
     });
     
-    async function handleTranscribe(id, button) { /* ... */ }
-    async function handleCopy(id, button) { /* ... */ }
-    
-    function handleSeek(progressBarWrapper, id) {
+    async function handleTranscribe(id, button) {
+        const recording = recordings.find(r => r.id === id);
+        button.disabled = true;
+        const statusP = button.closest('li').querySelector('.transcription-status');
+        if (statusP) statusP.textContent = 'Transcribiendo...';
+        try {
+            const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: recording.blob });
+            if (!response.ok) throw new Error(`Error: ${response.statusText}`);
+            const data = await response.json();
+            recording.transcript = data.results.channels[0].alternatives[0].transcript || "(No se pudo transcribir)";
+        } catch (error) { if (statusP) statusP.textContent = 'Error al transcribir.';
+        } finally { renderRecordings(); }
+    }
+    async function handleCopy(id, button) {
+        const recording = recordings.find(r => r.id === id);
+        await navigator.clipboard.writeText(recording.transcript);
+        button.textContent = '¡Copiado!';
+        setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
+    }
+    function handleSeek(e, id) {
         const recording = recordings.find(r => r.id === id);
         if (!recording) return;
+        const progressBarWrapper = e.currentTarget.closest('.progress-bar-wrapper');
         const rect = progressBarWrapper.getBoundingClientRect();
-        const clickX = event.clientX - rect.left;
+        const clickX = e.clientX - rect.left;
         const width = progressBarWrapper.clientWidth;
         seekToTime = (clickX / width) * recording.duration;
         playRecording(id);
     }
 
     // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
-    recordingsList.addEventListener('dragstart', (e) => { /* ... */ });
-    recordingsList.addEventListener('dragend', (e) => { /* ... */ });
-    recordingsList.addEventListener('dragover', (e) => { /* ... */ });
+    recordingsList.addEventListener('dragstart', (e) => {
+        const li = e.target.closest('li[data-id]');
+        if (li) { draggedItemId = Number(li.dataset.id); e.target.classList.add('dragging'); }
+    });
+    recordingsList.addEventListener('dragend', (e) => e.target.classList.remove('dragging'));
+    recordingsList.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const afterElement = getDragAfterElement(recordingsList, e.clientY);
+        const dragging = document.querySelector('.dragging');
+        if (dragging) {
+            if (afterElement == null) { recordingsList.appendChild(dragging); } 
+            else { recordingsList.insertBefore(dragging, afterElement); }
+        }
+    });
     recordingsList.addEventListener('drop', () => {
         const newOrderIds = [...recordingsList.querySelectorAll('li[data-id]')].map(li => Number(li.dataset.id));
         recordings.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
@@ -203,7 +251,15 @@ document.addEventListener('DOMContentLoaded', () => {
         settings.sortDesc = false;
         saveSettings();
     });
-    function getDragAfterElement(container, y) { /* ... */ }
+    function getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('li:not(.dragging)')];
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; } 
+            else { return closest; }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
     sortToggle.addEventListener('change', e => {
         settings.sortDesc = e.target.checked;
         saveSettings();
@@ -217,15 +273,56 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 8. ATRIBUTOS DE TECLADO Y CONFIGURACIÓN ---
-    function initShortcuts() { /* ... */ }
-    shortcutList.addEventListener('click', (e) => { /* ... */ });
-    window.addEventListener('keydown', (e) => { /* ... */ });
-    function loadSettings() { /* ... */ }
-    function saveSettings() { /* ... */ }
-    speedControl.addEventListener('input', e => { /* ... */ });
-    repeatControl.addEventListener('change', e => { /* ... */ });
-    rewindControl.addEventListener('change', e => { /* ... */ });
-    resetShortcutsButton.addEventListener('click', () => { /* ... */ });
+    function initShortcuts() {
+        shortcutList.innerHTML = '';
+        Object.entries(shortcutActions).forEach(([action, label]) => {
+            const key = settings.shortcuts[action] || 'Sin asignar';
+            shortcutList.innerHTML += `<div class="shortcut-item"><div class="shortcut-label">${label}:</div><div class="shortcut-key">${key}</div><button class="shortcut-set-btn" data-action="${action}">Establecer</button></div>`;
+        });
+    }
+    shortcutList.addEventListener('click', (e) => {
+        if (e.target.matches('.shortcut-set-btn')) {
+            const action = e.target.dataset.action;
+            if (listeningForShortcut === action) {
+                listeningForShortcut = null;
+                e.target.textContent = 'Establecer'; e.target.classList.remove('listening');
+            } else {
+                document.querySelectorAll('.shortcut-set-btn.listening').forEach(btn => { btn.classList.remove('listening'); btn.textContent = 'Establecer'; });
+                listeningForShortcut = action;
+                e.target.textContent = 'Escuchando...'; e.target.classList.add('listening');
+            }
+        }
+    });
+    window.addEventListener('keydown', (e) => {
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
+        if (listeningForShortcut) {
+            e.preventDefault(); const key = e.code;
+            Object.keys(settings.shortcuts).forEach(act => { if (settings.shortcuts[act] === key) delete settings.shortcuts[act]; });
+            settings.shortcuts[listeningForShortcut] = key;
+            saveSettings(); initShortcuts(); listeningForShortcut = null;
+        } else {
+            const action = Object.keys(settings.shortcuts).find(act => settings.shortcuts[act] === e.code);
+            if (action) {
+                e.preventDefault();
+                const actionFunctions = { playPause: handlePlayPause, stop: handleStop, rewind: handleRewind, next: handleNext, previous: handlePrevious };
+                if (actionFunctions[action]) actionFunctions[action]();
+            }
+        }
+    });
+
+    function loadSettings() {
+        const saved = localStorage.getItem('playerSettings');
+        const defaults = { speed: 1.0, repeat: 'none', rewindSeconds: 5, shortcuts: {}, sortDesc: true };
+        settings = saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+        speedControl.value = settings.speed; speedValue.textContent = `${Number(settings.speed).toFixed(1)}x`; audioPlayer.playbackRate = settings.speed;
+        repeatControl.value = settings.repeat; rewindControl.value = settings.rewindSeconds; sortToggle.checked = settings.sortDesc;
+        audioPlayer.loop = (settings.repeat === 'one');
+    }
+    function saveSettings() { localStorage.setItem('playerSettings', JSON.stringify(settings)); }
+    speedControl.addEventListener('input', e => { settings.speed = parseFloat(e.target.value); audioPlayer.playbackRate = settings.speed; speedValue.textContent = `${settings.speed.toFixed(1)}x`; saveSettings(); });
+    repeatControl.addEventListener('change', e => { settings.repeat = e.target.value; audioPlayer.loop = (settings.repeat === 'one'); saveSettings(); });
+    rewindControl.addEventListener('change', e => { settings.rewindSeconds = parseInt(e.target.value, 10) || 5; saveSettings(); });
+    resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
     // --- 9. EVENTOS DEL MOTOR DE AUDIO (CON CORRECCIONES) ---
     function updatePlayerUI() {
@@ -239,6 +336,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     audioPlayer.addEventListener('loadedmetadata', () => {
+        const rec = recordings.find(r => r.id === currentlyPlayingId);
+        if (rec && rec.duration === 0) {
+            rec.duration = audioPlayer.duration;
+            renderRecordings();
+        }
         if (seekToTime !== null) {
             audioPlayer.currentTime = seekToTime;
             seekToTime = null;
@@ -263,14 +365,43 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (settings.repeat === 'all' && lastIndex < sortedIds.length - 1) { handleNext(); }
         else if (settings.repeat === 'all' && lastIndex === sortedIds.length - 1) { playRecording(sortedIds[0]); }
     });
-    audioPlayer.addEventListener('timeupdate', () => { /* ... */ });
-    function formatTime(seconds) { /* ... */ }
-    clearAllButton.addEventListener('click', () => { /* ... */ });
-    clearTranscriptsButton.addEventListener('click', () => { /* ... */ });
+    audioPlayer.addEventListener('timeupdate', () => {
+        if (!currentlyPlayingId) return;
+        const li = recordingsList.querySelector(`li[data-id='${currentlyPlayingId}']`);
+        if (!li) return;
+        const progress = li.querySelector('.progress');
+        const currentTimeDisplay = li.querySelector('.current-time');
+        const { currentTime, duration } = audioPlayer;
+        if (progress) progress.style.width = `${(currentTime / duration) * 100}%`;
+        if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentTime);
+    });
+    
+    function formatTime(seconds) {
+        const min = Math.floor(seconds / 60); const sec = Math.floor(seconds % 60).toString().padStart(2, '0');
+        return isNaN(min) || isNaN(sec) ? '0:00' : `${min}:${sec}`;
+    }
+    clearAllButton.addEventListener('click', () => { if (recordings.length > 0 && confirm('¿Borrar TODAS las grabaciones?')) { recordings = []; renderRecordings(); } });
+    clearTranscriptsButton.addEventListener('click', () => { recordings.forEach(rec => rec.transcript = null); renderRecordings(); });
 
     // --- 10. INICIALIZACIÓN ---
-    function init() { /* ... */ }
-    themeToggle.addEventListener('change', () => { /* ... */ });
-    function loadTheme() { /* ... */ }
+    function init() {
+        loadSettings();
+        initShortcuts();
+        renderRecordings();
+        updateButtonStates(false, true, true);
+        loadTheme();
+    }
+    themeToggle.addEventListener('change', () => {
+        document.body.classList.toggle('dark-mode', !themeToggle.checked);
+        document.body.classList.toggle('light-mode', themeToggle.checked);
+        localStorage.setItem('theme', themeToggle.checked ? 'light' : 'dark');
+    });
+    function loadTheme() {
+        if (localStorage.getItem('theme') === 'light') {
+            themeToggle.checked = true;
+            document.body.classList.remove('dark-mode');
+            document.body.classList.add('light-mode');
+        }
+    }
     init();
 });
