@@ -236,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
     recordingsList.addEventListener('dragstart', (e) => {
         const li = e.target.closest('li[data-id]');
-        if (li) { draggedItemId = Number(li.dataset.id); e.target.classList.add('dragging'); }
+        if (li) { e.target.classList.add('dragging'); }
     });
     recordingsList.addEventListener('dragend', (e) => e.target.classList.remove('dragging'));
     recordingsList.addEventListener('dragover', (e) => {
