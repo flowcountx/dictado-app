@@ -76,25 +76,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO ---
-    
-    // --- CORRECCIÓN CLAVE EN playRecording ---
     function playRecording(id) {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
         
-        // Si es un audio diferente, cambiamos la fuente.
         if (currentlyPlayingId !== id) {
             audioPlayer.src = rec.url;
         }
-
-        // Se aplica la velocidad JUSTO ANTES de reproducir.
-        // Esto soluciona el reseteo de velocidad al cambiar el `src`.
-        audioPlayer.playbackRate = settings.speed;
         
+        audioPlayer.playbackRate = settings.speed;
         audioPlayer.play();
         currentlyPlayingId = id;
     }
-
     function handlePlayPause(idFromButton = null) {
         const targetId = idFromButton || currentlyPlayingId;
         if (!targetId) {
@@ -108,11 +101,24 @@ document.addEventListener('DOMContentLoaded', () => {
             playRecording(targetId);
         }
     }
-    function handleStop() {
-        if (!currentlyPlayingId) return;
+    
+    // --- FUNCIÓN handleStop CORREGIDA ---
+    function handleStop(id) {
+        const rec = recordings.find(r => r.id === id);
+        if (!rec) return;
+
+        // Si el audio que se quiere detener NO es el que está cargado en el reproductor...
+        if (currentlyPlayingId !== id) {
+            // ...lo cargamos. Esto lo convierte en el audio "activo" pero pausado.
+            currentlyPlayingId = id;
+            audioPlayer.src = rec.url;
+        }
+        
+        // Ahora que el audio correcto está cargado, lo pausamos y reiniciamos.
         audioPlayer.pause();
         audioPlayer.currentTime = 0;
     }
+
     function handleRewind() {
         if (!currentlyPlayingId) return;
         audioPlayer.currentTime = Math.max(0, audioPlayer.currentTime - settings.rewindSeconds);
@@ -195,14 +201,15 @@ document.addEventListener('DOMContentLoaded', () => {
         recordingsList.scrollTop = oldScroll;
     }
 
-    // --- 6. LÓGICA DE EVENTOS DE LA LISTA ---
+    // --- 6. LÓGICA DE EVENTOS DE LA LISTA (CON MODIFICACIÓN) ---
     recordingsList.addEventListener('click', (e) => {
         const li = e.target.closest('li[data-id]');
         if (!li) return;
         const id = Number(li.dataset.id);
 
         if (e.target.matches('.play-pause-btn')) handlePlayPause(id);
-        if (e.target.matches('.stop-btn')) handleStop();
+        // Se pasa el 'id' a handleStop para que sepa qué audio detener
+        if (e.target.matches('.stop-btn')) handleStop(id); 
         if (e.target.matches('.rewind-btn')) handleRewind();
         if (e.target.matches('.next-btn')) handleNext();
         if (e.target.matches('.previous-btn')) handlePrevious();
@@ -340,7 +347,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const action = Object.keys(settings.shortcuts).find(act => settings.shortcuts[act] === e.code);
             if (action) {
                 e.preventDefault();
-                const actionFunctions = { playPause: handlePlayPause, stop: handleStop, rewind: handleRewind, next: handleNext, previous: handlePrevious };
+                // Ahora handleStop requiere un id, por lo que el atajo de teclado debe actuar sobre el audio actual
+                const actionFunctions = { playPause: handlePlayPause, stop: () => handleStop(currentlyPlayingId), rewind: handleRewind, next: handleNext, previous: handlePrevious };
                 if (actionFunctions[action]) actionFunctions[action]();
             }
         }
@@ -385,19 +393,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     audioPlayer.addEventListener('play', updatePlayerUI);
     audioPlayer.addEventListener('pause', updatePlayerUI);
+    audioPlayer.addEventListener('timeupdate', () => {
+        if (!currentlyPlayingId) return;
+        const li = recordingsList.querySelector(`li[data-id='${currentlyPlayingId}']`);
+        if (!li) return;
+        const progress = li.querySelector('.progress');
+        const currentTimeDisplay = li.querySelector('.current-time');
+        const { currentTime, duration } = audioPlayer;
+        if (progress && duration > 0) progress.style.width = `${(currentTime / duration) * 100}%`;
+        if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentTime);
+        // Llamar a updatePlayerUI aquí también asegura que la UI esté siempre sincronizada,
+        // especialmente después de una acción como handleStop.
+        updatePlayerUI();
+    });
 
     audioPlayer.addEventListener('ended', () => {
         const wasPlayingId = currentlyPlayingId;
-
         const finishedLi = recordingsList.querySelector(`li[data-id='${wasPlayingId}']`);
         if (finishedLi) {
             finishedLi.querySelector('.progress').style.width = '0%';
             finishedLi.querySelector('.current-time').textContent = '0:00';
         }
-
         const sortedIds = getSortedIds();
         const lastIndex = sortedIds.indexOf(wasPlayingId);
-
         if (settings.repeat === 'one') {
             playRecording(wasPlayingId);
         } else if (settings.repeat === 'all') {
@@ -409,17 +427,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             updatePlayerUI();
         }
-    });
-
-    audioPlayer.addEventListener('timeupdate', () => {
-        if (!currentlyPlayingId) return;
-        const li = recordingsList.querySelector(`li[data-id='${currentlyPlayingId}']`);
-        if (!li) return;
-        const progress = li.querySelector('.progress');
-        const currentTimeDisplay = li.querySelector('.current-time');
-        const { currentTime, duration } = audioPlayer;
-        if (progress && duration > 0) progress.style.width = `${(currentTime / duration) * 100}%`;
-        if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentTime);
     });
     
     function formatTime(seconds) {
