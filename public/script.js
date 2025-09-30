@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO ---
+    // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO (CON CORRECCIONES) ---
     function playRecording(id) {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
@@ -216,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
         button.textContent = '¡Copiado!';
         setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
     }
-
+    
     function handleSeek(e, id) {
         const recording = recordings.find(r => r.id === id);
         if (!recording) return;
@@ -225,16 +225,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const clickX = e.clientX - rect.left;
         const width = progressBarWrapper.clientWidth;
         const newTime = (clickX / width) * recording.duration;
-
+        
+        // CORRECCIÓN CLAVE: Si es la canción actual, solo salta. Si es otra, cárgala y salta.
         if (currentlyPlayingId === id) {
             audioPlayer.currentTime = newTime;
         } else {
+            // Guardamos el tiempo al que queremos saltar para usarlo después de cargar
             seekToTime = newTime;
             playRecording(id);
         }
     }
 
-    // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
+    // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN (CON CORRECCIÓN) ---
     recordingsList.addEventListener('dragstart', (e) => {
         const li = e.target.closest('li[data-id]');
         if (li) { draggedItemId = Number(li.dataset.id); e.target.classList.add('dragging'); }
@@ -250,8 +252,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     recordingsList.addEventListener('drop', () => {
+        // CORRECCIÓN CLAVE: Actualizamos el array de datos para que coincida con el nuevo orden del DOM
         const newOrderIds = [...recordingsList.querySelectorAll('li[data-id]')].map(li => Number(li.dataset.id));
         recordings.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+
+        // Desactivamos la ordenación automática al reordenar manualmente
         sortToggle.checked = false;
         settings.sortDesc = false;
         saveSettings();
@@ -274,6 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settings.sortDesc) {
             return [...recordings].sort((a,b) => b.id - a.id).map(r => r.id);
         }
+        // Devuelve el orden del array de datos, que ahora es el correcto
         return recordings.map(r => r.id);
     }
 
@@ -330,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
     // --- 9. EVENTOS DEL MOTOR DE AUDIO (CON CORRECCIONES) ---
+    // CORRECCIÓN CLAVE: Nueva función ligera para actualizar la UI sin reconstruirla
     function updatePlayerUI() {
         for (const li of recordingsList.children) {
             const id = Number(li.dataset.id);
@@ -341,11 +348,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     audioPlayer.addEventListener('loadedmetadata', () => {
-        const rec = recordings.find(r => r.id === currentlyPlayingId);
-        if (rec && isNaN(rec.duration)) {
-            rec.duration = audioPlayer.duration;
-            renderRecordings();
-        }
         if (seekToTime !== null) {
             audioPlayer.currentTime = seekToTime;
             seekToTime = null;
@@ -377,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const progress = li.querySelector('.progress');
         const currentTimeDisplay = li.querySelector('.current-time');
         const { currentTime, duration } = audioPlayer;
-        if (progress && duration > 0) progress.style.width = `${(currentTime / duration) * 100}%`;
+        if (progress) progress.style.width = `${(currentTime / duration) * 100}%`;
         if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentTime);
     });
     
