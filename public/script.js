@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM (COMPLETO) ---
+    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM ---
     const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const stopButton = document.getElementById('stopButton');
@@ -30,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
         playPause: 'Reproducir/Pausar', rewind: 'Retroceder', stop: 'Detener',
         next: 'Siguiente', previous: 'Anterior'
     };
-    let draggedItemId = null;
 
     // --- 3. LÓGICA DE GRABACIÓN Y CARGA ---
     recordButton.addEventListener('click', async () => {
@@ -83,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function playRecording(id) {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
+        // Solo cambia la fuente si es una canción diferente
         if (currentlyPlayingId !== id) {
             audioPlayer.src = rec.url;
         }
@@ -97,7 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sortedIds.length > 0) playRecording(sortedIds[0]);
             return;
         }
-        // CORRECCIÓN CLAVE: Distingue correctamente entre pausar y reproducir
+        
+        // CORRECCIÓN CLAVE: Lógica explícita para pausar
         if (currentlyPlayingId === targetId && !audioPlayer.paused) {
             audioPlayer.pause();
         } else {
@@ -149,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderRecordings() {
         let recordingsToRender = [...recordings];
+        // La ordenación automática solo se aplica si el toggle está activado
         if (settings.sortDesc) {
             recordingsToRender.sort((a, b) => b.id - a.id);
         }
@@ -199,6 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const li = e.target.closest('li[data-id]');
         if (!li) return;
         const id = Number(li.dataset.id);
+
         if (e.target.matches('.play-pause-btn')) handlePlayPause(id);
         if (e.target.matches('.stop-btn')) handleStop();
         if (e.target.matches('.rewind-btn')) handleRewind();
@@ -253,7 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     recordingsList.addEventListener('drop', () => {
-        // CORRECCIÓN CLAVE: Actualizamos el array de datos para que coincida con el orden del DOM
+        // CORRECCIÓN CLAVE: Actualizamos el array de datos para que coincida con el nuevo orden del DOM
         const newOrderIds = [...recordingsList.querySelectorAll('li[data-id]')].map(li => Number(li.dataset.id));
         recordings.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
 
@@ -334,15 +337,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 9. EVENTOS DEL MOTOR DE AUDIO Y BOTONES DE LIMPIEZA (CON CORRECCIÓN DE PAUSA) ---
     audioPlayer.addEventListener('play', () => renderRecordings());
-    audioPlayer.addEventListener('pause', () => renderRecordings()); // Simplemente re-renderiza para cambiar el icono
+    audioPlayer.addEventListener('pause', () => renderRecordings());
     audioPlayer.addEventListener('ended', () => {
         const sortedIds = getSortedIds();
         const currentIndex = sortedIds.indexOf(currentlyPlayingId);
+        const wasPlayingId = currentlyPlayingId;
         currentlyPlayingId = null;
-        if (settings.repeat === 'one' && currentIndex !== -1) { playRecording(sortedIds[currentIndex]); } 
-        else if (settings.repeat === 'all' && currentIndex < sortedIds.length - 1) { handleNext(); } 
-        else if (settings.repeat === 'all' && currentIndex === sortedIds.length - 1) { playRecording(sortedIds[0]); } 
-        else { renderRecordings(); }
+
+        if (settings.repeat === 'one') {
+            playRecording(wasPlayingId);
+        } else if (settings.repeat === 'all' && currentIndex < sortedIds.length - 1) {
+            handleNext();
+        } else if (settings.repeat === 'all' && currentIndex === sortedIds.length - 1) {
+            playRecording(sortedIds[0]);
+        } else {
+            renderRecordings();
+        }
     });
     audioPlayer.addEventListener('timeupdate', () => {
         if (!currentlyPlayingId) return;
