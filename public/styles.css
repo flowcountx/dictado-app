@@ -4,12 +4,10 @@
     --surface-color: #1e1e1e;
     --primary-text-color: #e0e0e0;
     --secondary-text-color: #b3b3b3;
-    /* CAMBIO: Tono turquesa más oscuro y menos saturado */
-    --primary-color: #009688;
+    --primary-color: #009688; /* Turquesa más oscuro */
     --record-color: #cf6679;
     --pause-color: #fca130;
-    /* CAMBIO: Tono azul más oscuro */
-    --stop-color: #1e88e5;
+    --stop-color: #1e88e5; /* Azul más oscuro */
     --shadow-color: rgba(0, 0, 0, 0.5);
     --border-color: #333;
 }
@@ -184,7 +182,6 @@ body.light-mode .actions button, body.light-mode .actions a { background-color: 
     padding: 15px; background-color: rgba(0,0,0,0.2);
     border-left: 4px solid var(--primary-color); white-space: pre-wrap;
     font-family: monospace; color: var(--secondary-text-color);
-    /* CAMBIO: Aumento del tamaño de la fuente para mejor legibilidad */
     font-size: 1.1em;
 }
 body.light-mode .transcription { background-color: #f9f9f9; }
