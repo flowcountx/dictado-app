@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM (COMPLETO) ---
+    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM ---
     const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const stopButton = document.getElementById('stopButton');
@@ -85,7 +85,6 @@ document.addEventListener('DOMContentLoaded', () => {
         audioPlayer.play();
         currentlyPlayingId = id;
     }
-
     function handlePlayPause(idFromButton = null) {
         const targetId = idFromButton || currentlyPlayingId;
         if (!targetId) {
@@ -93,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sortedIds.length > 0) playRecording(sortedIds[0]);
             return;
         }
-        
         if (currentlyPlayingId === targetId && !audioPlayer.paused) {
             audioPlayer.pause();
         } else {
@@ -188,6 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const li = e.target.closest('li[data-id]');
         if (!li) return;
         const id = Number(li.dataset.id);
+
         if (e.target.matches('.play-pause-btn')) handlePlayPause(id);
         if (e.target.matches('.stop-btn')) handleStop();
         if (e.target.matches('.rewind-btn')) handleRewind();
@@ -228,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playRecording(id);
     }
 
-    // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN (CON CORRECCIÓN) ---
+    // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
     recordingsList.addEventListener('dragstart', (e) => {
         const li = e.target.closest('li[data-id]');
         if (li) { draggedItemId = Number(li.dataset.id); e.target.classList.add('dragging'); }
@@ -244,11 +243,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     recordingsList.addEventListener('drop', () => {
-        // CORRECCIÓN CLAVE: Actualizamos el array de datos para que coincida con el nuevo orden del DOM
         const newOrderIds = [...recordingsList.querySelectorAll('li[data-id]')].map(li => Number(li.dataset.id));
         recordings.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
-
-        // Desactivamos la ordenación automática al reordenar manualmente
         sortToggle.checked = false;
         settings.sortDesc = false;
         saveSettings();
@@ -327,7 +323,6 @@ document.addEventListener('DOMContentLoaded', () => {
     resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
     // --- 9. EVENTOS DEL MOTOR DE AUDIO (CON CORRECCIONES) ---
-    // CORRECCIÓN CLAVE: Nueva función ligera para actualizar la UI sin reconstruirla
     function updatePlayerUI() {
         for (const li of recordingsList.children) {
             const id = Number(li.dataset.id);
@@ -339,6 +334,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     audioPlayer.addEventListener('loadedmetadata', () => {
+        const rec = recordings.find(r => r.id === currentlyPlayingId);
+        if (rec && isNaN(rec.duration)) {
+            rec.duration = audioPlayer.duration;
+            renderRecordings();
+        }
         if (seekToTime !== null) {
             audioPlayer.currentTime = seekToTime;
             seekToTime = null;
@@ -370,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const progress = li.querySelector('.progress');
         const currentTimeDisplay = li.querySelector('.current-time');
         const { currentTime, duration } = audioPlayer;
-        if (progress) progress.style.width = `${(currentTime / duration) * 100}%`;
+        if (progress && duration > 0) progress.style.width = `${(currentTime / duration) * 100}%`;
         if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentTime);
     });
     
