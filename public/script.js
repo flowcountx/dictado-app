@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM (COMPLETO) ---
+    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM ---
     const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const stopButton = document.getElementById('stopButton');
@@ -26,37 +26,144 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentlyPlayingId = null;
     let settings = {};
     let listeningForShortcut = null;
-    let seekToTime = null; // NUEVA VARIABLE para manejar el salto en la barra
+    let seekToTime = null;
     const shortcutActions = {
         playPause: 'Reproducir/Pausar', rewind: 'Retroceder', stop: 'Detener',
         next: 'Siguiente', previous: 'Anterior'
     };
 
     // --- 3. LÓGICA DE GRABACIÓN Y CARGA ---
-    // (Esta sección no cambia, es estable)
-    recordButton.addEventListener('click', async () => { /* ... */ });
-    pauseButton.addEventListener('click', () => { /* ... */ });
-    stopButton.addEventListener('click', () => { /* ... */ });
-    function updateButtonStates(isRecording, isPausedDisabled, isStopDisabled) { /* ... */ }
+    recordButton.addEventListener('click', async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                const name = `Grabación - ${new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}`;
+                addRecordingToList(audioBlob, name);
+                audioChunks = [];
+                stream.getTracks().forEach(track => track.stop());
+            };
+            mediaRecorder.start();
+            statusDiv.textContent = 'Grabando...';
+            updateButtonStates(true, false, false);
+        } catch (err) { statusDiv.textContent = 'Error: No se pudo acceder al micrófono.'; }
+    });
+    pauseButton.addEventListener('click', () => {
+        if (!mediaRecorder) return;
+        if (mediaRecorder.state === 'recording') { mediaRecorder.pause(); statusDiv.textContent = 'Pausado'; } 
+        else if (mediaRecorder.state === 'paused') { mediaRecorder.resume(); statusDiv.textContent = 'Grabando...'; }
+    });
+    stopButton.addEventListener('click', () => {
+        if (!mediaRecorder) return;
+        mediaRecorder.stop();
+        statusDiv.textContent = 'Grabación detenida.';
+        updateButtonStates(false, true, true);
+    });
+    function updateButtonStates(isRecording, isPausedDisabled, isStopDisabled) {
+        recordButton.disabled = isRecording;
+        pauseButton.disabled = isPausedDisabled;
+        stopButton.disabled = isStopDisabled;
+    }
     dropZone.addEventListener('dragover', e => e.preventDefault());
     dropZone.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files); });
     fileInput.addEventListener('change', () => handleFiles(fileInput.files));
-    function handleFiles(files) { /* ... */ }
+    function handleFiles(files) {
+        Array.from(files).filter(file => file.type.startsWith('audio/')).forEach(file => {
+            addRecordingToList(file, file.name);
+        });
+    }
 
-    // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO ---
-    // (Esta sección no cambia, es estable)
-    function playRecording(id) { /* ... */ }
-    function handlePlayPause(idFromButton = null) { /* ... */ }
+    // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO (CON CORRECCIONES) ---
+    function playRecording(id) {
+        const rec = recordings.find(r => r.id === id);
+        if (!rec) return;
+        if (currentlyPlayingId !== id) {
+            audioPlayer.src = rec.url;
+        }
+        audioPlayer.play();
+        currentlyPlayingId = id;
+    }
+
+    function handlePlayPause(idFromButton = null) {
+        const targetId = idFromButton || currentlyPlayingId;
+        if (!targetId) {
+            const sortedIds = getSortedIds();
+            if (sortedIds.length > 0) playRecording(sortedIds[0]);
+            return;
+        }
+        if (currentlyPlayingId === targetId && !audioPlayer.paused) {
+            audioPlayer.pause();
+        } else {
+            playRecording(targetId);
+        }
+    }
     function handleStop() { /* ... */ }
     function handleRewind() { /* ... */ }
     function handleNext() { /* ... */ }
     function handlePrevious() { /* ... */ }
     
     // --- 5. RENDERIZADO Y GESTIÓN DE LA LISTA ---
-    function addRecordingToList(audioBlob, name) { /* ... */ }
-    function renderRecordings() { /* ... (Sin cambios aquí) ... */ }
+    function addRecordingToList(audioBlob, name) {
+        const url = URL.createObjectURL(audioBlob);
+        const tempAudio = new Audio(url);
+        tempAudio.addEventListener('loadedmetadata', () => {
+            recordings.push({ 
+                id: Date.now(), name, url, blob: audioBlob, 
+                transcript: null, duration: tempAudio.duration 
+            });
+            renderRecordings();
+        });
+    }
 
-    // --- 6. LÓGICA DE EVENTOS DE LA LISTA (CON SEEK CORREGIDO) ---
+    function renderRecordings() {
+        let recordingsToRender = [...recordings];
+        if (settings.sortDesc) {
+            recordingsToRender.sort((a, b) => b.id - a.id);
+        }
+        recordingsList.innerHTML = '';
+        recordingsToRender.forEach(rec => {
+            const isPlaying = rec.id === currentlyPlayingId && !audioPlayer.paused;
+            const li = document.createElement('li');
+            li.dataset.id = rec.id;
+            li.draggable = true;
+            if (rec.id === currentlyPlayingId) li.classList.add('playing');
+            li.innerHTML = `
+                <div class="rec-info"><strong>${rec.name}</strong></div>
+                <div class="player-container">
+                    <div class="progress-container">
+                        <div class="time-display current-time">0:00</div>
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar"><div class="progress"></div></div>
+                        </div>
+                        <div class="time-display total-time">${formatTime(rec.duration)}</div>
+                    </div>
+                    <div class="player-controls">
+                        <button class="previous-btn" title="Anterior">⏪</button>
+                        <button class="rewind-btn" title="Retroceder ${settings.rewindSeconds}s">⎌</button>
+                        <button class="play-pause-btn">${isPlaying ? '❚❚' : '▶'}</button>
+                        <button class="stop-btn" title="Detener">⏹️</button>
+                        <button class="next-btn" title="Siguiente">⏩</button>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button class="transcribeBtn">Transcribir</button>
+                    <a href="${rec.url}" download="${rec.name}.wav" class="downloadLink">Descargar</a>
+                </div>
+                ${rec.transcript !== null 
+                    ? `<div class="transcription-wrapper">
+                         <p class="transcription">${rec.transcript}</p>
+                         <button class="copyBtn">Copiar</button>
+                       </div>` 
+                    : `<p class="transcription-status"></p>`
+                }
+            `;
+            recordingsList.appendChild(li);
+        });
+    }
+
+    // --- 6. LÓGICA DE EVENTOS DE LA LISTA ---
     recordingsList.addEventListener('click', (e) => {
         const li = e.target.closest('li[data-id]');
         if (!li) return;
@@ -69,43 +176,47 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.matches('.previous-btn')) handlePrevious();
         if (e.target.matches('.transcribeBtn')) handleTranscribe(id, e.target);
         if (e.target.matches('.copyBtn')) handleCopy(id, e.target);
-        // CORRECCIÓN CLAVE: La barra de progreso ahora llama a handleSeek
-        if (e.target.closest('.progress-bar-wrapper')) handleSeek(e, id);
+        if (e.target.closest('.progress-bar-wrapper')) handleSeek(e.target.closest('.progress-bar-wrapper'), id);
     });
     
     async function handleTranscribe(id, button) { /* ... */ }
     async function handleCopy(id, button) { /* ... */ }
     
-    // CORRECCIÓN CLAVE: Nueva lógica para la barra de avance (seek)
-    function handleSeek(e, id) {
+    function handleSeek(progressBarWrapper, id) {
         const recording = recordings.find(r => r.id === id);
         if (!recording) return;
-
-        const progressBarWrapper = e.currentTarget;
         const rect = progressBarWrapper.getBoundingClientRect();
-        const clickX = e.clientX - rect.left;
+        const clickX = event.clientX - rect.left;
         const width = progressBarWrapper.clientWidth;
-        const duration = recording.duration;
-        
-        // Guardamos el tiempo al que queremos saltar
-        seekToTime = (clickX / width) * duration;
-
-        // Reproducimos la grabación. El evento 'loadedmetadata' se encargará del salto.
+        seekToTime = (clickX / width) * recording.duration;
         playRecording(id);
     }
 
     // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
-    // (Esta sección no cambia, es estable)
     recordingsList.addEventListener('dragstart', (e) => { /* ... */ });
     recordingsList.addEventListener('dragend', (e) => { /* ... */ });
     recordingsList.addEventListener('dragover', (e) => { /* ... */ });
-    recordingsList.addEventListener('drop', () => { /* ... */ });
+    recordingsList.addEventListener('drop', () => {
+        const newOrderIds = [...recordingsList.querySelectorAll('li[data-id]')].map(li => Number(li.dataset.id));
+        recordings.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+        sortToggle.checked = false;
+        settings.sortDesc = false;
+        saveSettings();
+    });
     function getDragAfterElement(container, y) { /* ... */ }
-    sortToggle.addEventListener('change', e => { /* ... */ });
-    function getSortedIds() { /* ... */ }
+    sortToggle.addEventListener('change', e => {
+        settings.sortDesc = e.target.checked;
+        saveSettings();
+        renderRecordings();
+    });
+    function getSortedIds() {
+        if (settings.sortDesc) {
+            return [...recordings].sort((a,b) => b.id - a.id).map(r => r.id);
+        }
+        return recordings.map(r => r.id);
+    }
 
     // --- 8. ATRIBUTOS DE TECLADO Y CONFIGURACIÓN ---
-    // (Esta sección no cambia, es estable)
     function initShortcuts() { /* ... */ }
     shortcutList.addEventListener('click', (e) => { /* ... */ });
     window.addEventListener('keydown', (e) => { /* ... */ });
@@ -127,80 +238,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // CORRECCIÓN CLAVE: Evento para ejecutar el salto en la barra de progreso
     audioPlayer.addEventListener('loadedmetadata', () => {
         if (seekToTime !== null) {
             audioPlayer.currentTime = seekToTime;
-            seekToTime = null; // Reseteamos la variable
+            seekToTime = null;
         }
     });
-
     audioPlayer.addEventListener('play', updatePlayerUI);
     audioPlayer.addEventListener('pause', updatePlayerUI);
-    
-    // CORRECCIÓN CLAVE: Evento 'ended' ahora resetea la barra de progreso
     audioPlayer.addEventListener('ended', () => {
         const wasPlayingId = currentlyPlayingId;
         currentlyPlayingId = null;
         
-        // Resetea la UI de la canción que terminó
         const finishedLi = recordingsList.querySelector(`li[data-id='${wasPlayingId}']`);
         if (finishedLi) {
             finishedLi.querySelector('.progress').style.width = '0%';
             finishedLi.querySelector('.current-time').textContent = '0:00';
         }
-        updatePlayerUI(); // Actualiza los botones y resaltados
+        updatePlayerUI();
 
-        // Lógica de repetición
         const sortedIds = getSortedIds();
         const lastIndex = sortedIds.indexOf(wasPlayingId);
-        if (settings.repeat === 'one') {
-            playRecording(wasPlayingId);
-        } else if (settings.repeat === 'all' && lastIndex < sortedIds.length - 1) {
-            handleNext();
-        } else if (settings.repeat === 'all' && lastIndex === sortedIds.length - 1) {
-            playRecording(sortedIds[0]);
-        }
+        if (settings.repeat === 'one') { playRecording(wasPlayingId); }
+        else if (settings.repeat === 'all' && lastIndex < sortedIds.length - 1) { handleNext(); }
+        else if (settings.repeat === 'all' && lastIndex === sortedIds.length - 1) { playRecording(sortedIds[0]); }
     });
-
-    audioPlayer.addEventListener('timeupdate', () => {
-        if (!currentlyPlayingId) return;
-        const li = recordingsList.querySelector(`li[data-id='${currentlyPlayingId}']`);
-        if (!li) return;
-        const progress = li.querySelector('.progress');
-        const currentTimeDisplay = li.querySelector('.current-time');
-        const { currentTime, duration } = audioPlayer;
-        if (progress) progress.style.width = `${(currentTime / duration) * 100}%`;
-        if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentTime);
-    });
-    
-    function formatTime(seconds) {
-        const min = Math.floor(seconds / 60); const sec = Math.floor(seconds % 60).toString().padStart(2, '0');
-        return isNaN(min) || isNaN(sec) ? '0:00' : `${min}:${sec}`;
-    }
-
-    clearAllButton.addEventListener('click', () => { if (recordings.length > 0 && confirm('¿Borrar TODAS las grabaciones?')) { recordings = []; renderRecordings(); } });
-    clearTranscriptsButton.addEventListener('click', () => { recordings.forEach(rec => rec.transcript = null); renderRecordings(); });
+    audioPlayer.addEventListener('timeupdate', () => { /* ... */ });
+    function formatTime(seconds) { /* ... */ }
+    clearAllButton.addEventListener('click', () => { /* ... */ });
+    clearTranscriptsButton.addEventListener('click', () => { /* ... */ });
 
     // --- 10. INICIALIZACIÓN ---
-    function init() {
-        loadSettings();
-        initShortcuts();
-        renderRecordings();
-        updateButtonStates(false, true, true);
-        loadTheme();
-    }
-    themeToggle.addEventListener('change', () => {
-        document.body.classList.toggle('dark-mode', !themeToggle.checked);
-        document.body.classList.toggle('light-mode', themeToggle.checked);
-        localStorage.setItem('theme', themeToggle.checked ? 'light' : 'dark');
-    });
-    function loadTheme() {
-        if (localStorage.getItem('theme') === 'light') {
-            themeToggle.checked = true;
-            document.body.classList.remove('dark-mode');
-            document.body.classList.add('light-mode');
-        }
-    }
+    function init() { /* ... */ }
+    themeToggle.addEventListener('change', () => { /* ... */ });
+    function loadTheme() { /* ... */ }
     init();
 });
