@@ -79,6 +79,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function playRecording(id) {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
+
+        // --- MEJORA: Guardar la posición del audio anterior ANTES de cambiarlo ---
+        if (currentlyPlayingId && currentlyPlayingId !== id) {
+            const oldRec = recordings.find(r => r.id === currentlyPlayingId);
+            if (oldRec) {
+                oldRec.lastPosition = audioPlayer.currentTime;
+            }
+        }
         
         if (currentlyPlayingId !== id) {
             audioPlayer.src = rec.url;
@@ -88,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
         audioPlayer.play();
         currentlyPlayingId = id;
     }
+
     function handlePlayPause(idFromButton = null) {
         const targetId = idFromButton || currentlyPlayingId;
         if (!targetId) {
@@ -97,26 +106,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (currentlyPlayingId === targetId && !audioPlayer.paused) {
             audioPlayer.pause();
+            // --- MEJORA: Guardar la posición al pausar ---
+            const rec = recordings.find(r => r.id === currentlyPlayingId);
+            if (rec) {
+                rec.lastPosition = audioPlayer.currentTime;
+            }
         } else {
             playRecording(targetId);
         }
     }
     
-    // --- FUNCIÓN handleStop CORREGIDA ---
     function handleStop(id) {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
 
-        // Si el audio que se quiere detener NO es el que está cargado en el reproductor...
         if (currentlyPlayingId !== id) {
-            // ...lo cargamos. Esto lo convierte en el audio "activo" pero pausado.
             currentlyPlayingId = id;
             audioPlayer.src = rec.url;
         }
         
-        // Ahora que el audio correcto está cargado, lo pausamos y reiniciamos.
         audioPlayer.pause();
         audioPlayer.currentTime = 0;
+        // --- MEJORA: Resetear también la posición guardada ---
+        rec.lastPosition = 0;
     }
 
     function handleRewind() {
@@ -147,7 +159,8 @@ document.addEventListener('DOMContentLoaded', () => {
         tempAudio.addEventListener('loadedmetadata', () => {
             recordings.push({
                 id: Date.now(), name, url, blob: audioBlob,
-                transcript: null, duration: tempAudio.duration
+                transcript: null, duration: tempAudio.duration,
+                lastPosition: 0 // --- MEJORA: Añadimos la propiedad para guardar la posición ---
             });
             renderRecordings();
         });
@@ -162,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         recordingsList.innerHTML = '';
         recordingsToRender.forEach(rec => {
             const isPlaying = rec.id === currentlyPlayingId && !audioPlayer.paused;
-            const li = document.createElement('li');
+            li = document.createElement('li');
             li.dataset.id = rec.id;
             li.draggable = true;
             if (rec.id === currentlyPlayingId) li.classList.add('playing');
@@ -201,14 +214,13 @@ document.addEventListener('DOMContentLoaded', () => {
         recordingsList.scrollTop = oldScroll;
     }
 
-    // --- 6. LÓGICA DE EVENTOS DE LA LISTA (CON MODIFICACIÓN) ---
+    // --- 6. LÓGICA DE EVENTOS DE LA LISTA ---
     recordingsList.addEventListener('click', (e) => {
         const li = e.target.closest('li[data-id]');
         if (!li) return;
         const id = Number(li.dataset.id);
 
         if (e.target.matches('.play-pause-btn')) handlePlayPause(id);
-        // Se pasa el 'id' a handleStop para que sepa qué audio detener
         if (e.target.matches('.stop-btn')) handleStop(id); 
         if (e.target.matches('.rewind-btn')) handleRewind();
         if (e.target.matches('.next-btn')) handleNext();
@@ -251,6 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const clickX = e.clientX - rect.left;
         const width = progressBarWrapper.clientWidth;
         const newTime = (clickX / width) * recording.duration;
+        recording.lastPosition = newTime; // Guardamos la nueva posición
 
         if (currentlyPlayingId === id && audioPlayer.src) {
             audioPlayer.currentTime = newTime;
@@ -275,6 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
+    // ... (sin cambios en esta sección)
     recordingsList.addEventListener('dragstart', (e) => {
         const li = e.target.closest('li[data-id]');
         if (li) { e.target.classList.add('dragging'); }
@@ -316,6 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 8. ATRIBUTOS DE TECLADO Y CONFIGURACIÓN ---
+    // ... (sin cambios en esta sección, excepto la llamada a handleStop)
     function initShortcuts() {
         shortcutList.innerHTML = '';
         Object.entries(shortcutActions).forEach(([action, label]) => {
@@ -347,13 +362,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const action = Object.keys(settings.shortcuts).find(act => settings.shortcuts[act] === e.code);
             if (action) {
                 e.preventDefault();
-                // Ahora handleStop requiere un id, por lo que el atajo de teclado debe actuar sobre el audio actual
                 const actionFunctions = { playPause: handlePlayPause, stop: () => handleStop(currentlyPlayingId), rewind: handleRewind, next: handleNext, previous: handlePrevious };
                 if (actionFunctions[action]) actionFunctions[action]();
             }
         }
     });
-
     function loadSettings() {
         const saved = localStorage.getItem('playerSettings');
         const defaults = { speed: 1.0, repeat: 'none', rewindSeconds: 1, shortcuts: {}, sortDesc: true };
@@ -368,6 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     rewindControl.addEventListener('change', e => { settings.rewindSeconds = parseInt(e.target.value, 10) || 1; saveSettings(); });
     resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
+
     // --- 9. EVENTOS DEL MOTOR DE AUDIO ---
     function updatePlayerUI() {
         for (const li of recordingsList.children) {
@@ -380,17 +394,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // --- MEJORA: Restaurar la posición guardada al cargar el audio ---
     audioPlayer.addEventListener('loadedmetadata', () => {
         const rec = recordings.find(r => r.id === currentlyPlayingId);
         if (rec && (isNaN(rec.duration) || rec.duration === 0)) {
             rec.duration = audioPlayer.duration;
-            renderRecordings();
+            renderRecordings(); // Re-render para mostrar la duración correcta
         }
+        
+        // La búsqueda manual (seek) tiene prioridad
         if (seekToTime !== null) {
             audioPlayer.currentTime = seekToTime;
             seekToTime = null;
+        } else if (rec && rec.lastPosition > 0) {
+            // Si no, usamos la posición guardada
+            audioPlayer.currentTime = rec.lastPosition;
         }
     });
+
     audioPlayer.addEventListener('play', updatePlayerUI);
     audioPlayer.addEventListener('pause', updatePlayerUI);
     audioPlayer.addEventListener('timeupdate', () => {
@@ -402,13 +423,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const { currentTime, duration } = audioPlayer;
         if (progress && duration > 0) progress.style.width = `${(currentTime / duration) * 100}%`;
         if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(currentTime);
-        // Llamar a updatePlayerUI aquí también asegura que la UI esté siempre sincronizada,
-        // especialmente después de una acción como handleStop.
         updatePlayerUI();
     });
 
     audioPlayer.addEventListener('ended', () => {
         const wasPlayingId = currentlyPlayingId;
+        const rec = recordings.find(r => r.id === wasPlayingId);
+        if (rec) rec.lastPosition = 0; // Al terminar, se resetea la posición
+
         const finishedLi = recordingsList.querySelector(`li[data-id='${wasPlayingId}']`);
         if (finishedLi) {
             finishedLi.querySelector('.progress').style.width = '0%';
