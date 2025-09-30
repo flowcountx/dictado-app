@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO (CON CORRECCIONES) ---
+    // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO ---
     function playRecording(id) {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
@@ -222,13 +222,15 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
     }
 
-    // --- CÓDIGO CORREGIDO Y DEFINITIVO ---
+    // --- CÓDIGO CORREGIDO Y MEJORADO ---
     function handleSeek(e, id) {
         const recording = recordings.find(r => r.id === id);
         if (!recording || isNaN(recording.duration)) return;
-        
-        // --- CORRECCIÓN CLAVE AQUÍ ---
-        // Usamos e.target (el elemento clickeado) en lugar de e.currentTarget (la lista ul)
+
+        // 1. Guardamos el estado de reproducción ANTES de hacer cualquier cambio.
+        // Si el audio clickeado no es el actual, consideramos que "estaba pausado".
+        const wasPaused = (currentlyPlayingId === id) ? audioPlayer.paused : true;
+
         const progressBarWrapper = e.target.closest('.progress-bar-wrapper');
         if (!progressBarWrapper) return;
 
@@ -237,16 +239,34 @@ document.addEventListener('DOMContentLoaded', () => {
         const width = progressBarWrapper.clientWidth;
         const newTime = (clickX / width) * recording.duration;
 
+        // 2. Si es el audio actual, simplemente cambiamos su tiempo.
         if (currentlyPlayingId === id && audioPlayer.src) {
             audioPlayer.currentTime = newTime;
-            if (audioPlayer.paused) {
-                audioPlayer.play();
-            }
         } else {
+        // 3. Si es un audio nuevo, lo cargamos y preparamos el tiempo de búsqueda.
+            currentlyPlayingId = id;
+            audioPlayer.src = recording.url;
             seekToTime = newTime;
-            playRecording(id);
+            // Actualizamos la UI para que se vea como "activo" pero no lo reproducimos.
+            updatePlayerUI();
+        }
+
+        // 4. Si el audio NO estaba pausado, continuamos la reproducción.
+        // Si estaba pausado, la acción termina aquí, manteniendo la pausa.
+        if (!wasPaused) {
+            audioPlayer.play();
+        }
+        
+        // 5. Actualizamos manualmente la UI para dar feedback visual inmediato.
+        const li = recordingsList.querySelector(`li[data-id='${id}']`);
+        if(li) {
+            const progress = li.querySelector('.progress');
+            const currentTimeDisplay = li.querySelector('.current-time');
+            if (progress) progress.style.width = `${(newTime / recording.duration) * 100}%`;
+            if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(newTime);
         }
     }
+
 
     // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN ---
     recordingsList.addEventListener('dragstart', (e) => {
@@ -341,13 +361,14 @@ document.addEventListener('DOMContentLoaded', () => {
     rewindControl.addEventListener('change', e => { settings.rewindSeconds = parseInt(e.target.value, 10) || 1; saveSettings(); });
     resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
-    // --- 9. EVENTOS DEL MOTOR DE AUDIO (CON CORRECCIONES) ---
+    // --- 9. EVENTOS DEL MOTOR DE AUDIO ---
     function updatePlayerUI() {
         for (const li of recordingsList.children) {
             const id = Number(li.dataset.id);
             const playPauseBtn = li.querySelector('.play-pause-btn');
             const isPlaying = id === currentlyPlayingId && !audioPlayer.paused;
-            li.classList.toggle('playing', isPlaying);
+            const isActive = id === currentlyPlayingId;
+            li.classList.toggle('playing', isActive); // 'playing' class now means 'active'
             if(playPauseBtn) playPauseBtn.textContent = isPlaying ? '❚❚' : '▶';
         }
     }
@@ -367,20 +388,23 @@ document.addEventListener('DOMContentLoaded', () => {
     audioPlayer.addEventListener('pause', updatePlayerUI);
     audioPlayer.addEventListener('ended', () => {
         const wasPlayingId = currentlyPlayingId;
-        currentlyPlayingId = null;
         
         const finishedLi = recordingsList.querySelector(`li[data-id='${wasPlayingId}']`);
         if (finishedLi) {
             finishedLi.querySelector('.progress').style.width = '0%';
             finishedLi.querySelector('.current-time').textContent = '0:00';
         }
-        updatePlayerUI();
-
+        
         const sortedIds = getSortedIds();
         const lastIndex = sortedIds.indexOf(wasPlayingId);
+
         if (settings.repeat === 'one') { playRecording(wasPlayingId); }
-        else if (settings.repeat === 'all' && lastIndex < sortedIds.length - 1) { handleNext(); }
+        else if (lastIndex < sortedIds.length - 1) { handleNext(); }
         else if (settings.repeat === 'all' && lastIndex === sortedIds.length - 1) { playRecording(sortedIds[0]); }
+        else {
+             currentlyPlayingId = null;
+             updatePlayerUI();
+        }
     });
     audioPlayer.addEventListener('timeupdate', () => {
         if (!currentlyPlayingId) return;
