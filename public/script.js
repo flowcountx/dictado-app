@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM ---
+    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM (COMPLETO) ---
     const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const stopButton = document.getElementById('stopButton');
@@ -82,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function playRecording(id) {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
-        // Solo cambia la fuente si es una canción diferente
         if (currentlyPlayingId !== id) {
             audioPlayer.src = rec.url;
         }
@@ -150,7 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderRecordings() {
         let recordingsToRender = [...recordings];
-        // La ordenación automática solo se aplica si el toggle está activado
         if (settings.sortDesc) {
             recordingsToRender.sort((a, b) => b.id - a.id);
         }
@@ -233,6 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function handleSeek(e, id) {
         const recording = recordings.find(r => r.id === id);
+        if (!recording) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
         const width = e.currentTarget.clientWidth;
@@ -280,7 +279,11 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRecordings();
     });
     function getSortedIds() {
-        return [...recordingsList.querySelectorAll('li')].map(li => Number(li.dataset.id));
+        const sortedRecordings = [...recordings].sort((a, b) => {
+            if (settings.sortDesc) return b.id - a.id;
+            return 0;
+        });
+        return sortedRecordings.map(r => r.id);
     }
 
     // --- 8. ATRIBUTOS DE TECLADO Y CONFIGURACIÓN ---
@@ -336,8 +339,25 @@ document.addEventListener('DOMContentLoaded', () => {
     resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
     // --- 9. EVENTOS DEL MOTOR DE AUDIO Y BOTONES DE LIMPIEZA (CON CORRECCIÓN DE PAUSA) ---
-    audioPlayer.addEventListener('play', () => renderRecordings());
-    audioPlayer.addEventListener('pause', () => renderRecordings());
+    // CORRECCIÓN CLAVE: Nueva función ligera para actualizar la UI sin reconstruirla
+    function updatePlayerUI() {
+        for (const li of recordingsList.children) {
+            const id = Number(li.dataset.id);
+            const playPauseBtn = li.querySelector('.play-pause-btn');
+            const isPlaying = id === currentlyPlayingId && !audioPlayer.paused;
+
+            if (isPlaying) {
+                li.classList.add('playing');
+                playPauseBtn.textContent = '❚❚';
+            } else {
+                li.classList.remove('playing');
+                playPauseBtn.textContent = '▶';
+            }
+        }
+    }
+
+    audioPlayer.addEventListener('play', () => updatePlayerUI());
+    audioPlayer.addEventListener('pause', () => updatePlayerUI());
     audioPlayer.addEventListener('ended', () => {
         const sortedIds = getSortedIds();
         const currentIndex = sortedIds.indexOf(currentlyPlayingId);
@@ -351,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (settings.repeat === 'all' && currentIndex === sortedIds.length - 1) {
             playRecording(sortedIds[0]);
         } else {
-            renderRecordings();
+            updatePlayerUI();
         }
     });
     audioPlayer.addEventListener('timeupdate', () => {
