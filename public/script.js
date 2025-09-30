@@ -323,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function loadSettings() {
         const saved = localStorage.getItem('playerSettings');
-        const defaults = { speed: 1.0, repeat: 'none', rewindSeconds: 5, shortcuts: {}, sortDesc: true };
+        const defaults = { speed: 1.0, repeat: 'none', rewindSeconds: 1, shortcuts: {}, sortDesc: true };
         settings = saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
         speedControl.value = settings.speed; speedValue.textContent = `${Number(settings.speed).toFixed(1)}x`; audioPlayer.playbackRate = settings.speed;
         repeatControl.value = settings.repeat; rewindControl.value = settings.rewindSeconds; sortToggle.checked = settings.sortDesc;
