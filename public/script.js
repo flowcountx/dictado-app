@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM ---
+    // --- 1. SELECCIÓN DE ELEMENTOS DEL DOM (COMPLETO) ---
     const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const stopButton = document.getElementById('stopButton');
@@ -53,13 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     pauseButton.addEventListener('click', () => {
         if (!mediaRecorder) return;
-        if (mediaRecorder.state === 'recording') {
-            mediaRecorder.pause();
-            statusDiv.textContent = 'Pausado';
-        } else if (mediaRecorder.state === 'paused') {
-            mediaRecorder.resume();
-            statusDiv.textContent = 'Grabando...';
-        }
+        if (mediaRecorder.state === 'recording') { mediaRecorder.pause(); statusDiv.textContent = 'Pausado'; } 
+        else if (mediaRecorder.state === 'paused') { mediaRecorder.resume(); statusDiv.textContent = 'Grabando...'; }
     });
 
     stopButton.addEventListener('click', () => {
@@ -84,11 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO ---
+    // --- 4. LÓGICA DEL REPRODUCTOR AVANZADO (CON CORRECCIÓN DE PLAY/PAUSE) ---
     function playRecording(id) {
         const rec = recordings.find(r => r.id === id);
         if (!rec) return;
-        audioPlayer.src = rec.url;
+        if (currentlyPlayingId !== id) audioPlayer.src = rec.url;
         audioPlayer.play();
         currentlyPlayingId = id;
     }
@@ -96,9 +91,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function handlePlayPause(idFromButton = null) {
         const targetId = idFromButton || currentlyPlayingId;
         if (!targetId) {
-            if (recordings.length > 0) playRecording(recordings.find(r => r.id === Number(recordingsList.querySelector('li').dataset.id)).id);
+            const sortedIds = getSortedIds();
+            if (sortedIds.length > 0) playRecording(sortedIds[0]);
             return;
         }
+        // CORRECCIÓN CLAVE: Distingue entre pausar y reproducir
         if (currentlyPlayingId === targetId && !audioPlayer.paused) {
             audioPlayer.pause();
         } else {
@@ -118,8 +115,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleNext() {
-        if (recordings.length === 0) return;
-        const sortedIds = [...recordingsList.querySelectorAll('li')].map(li => Number(li.dataset.id));
+        const sortedIds = getSortedIds();
+        if (sortedIds.length === 0) return;
         const currentIndex = sortedIds.indexOf(currentlyPlayingId);
         if (currentIndex < sortedIds.length - 1) {
             playRecording(sortedIds[currentIndex + 1]);
@@ -127,8 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handlePrevious() {
-        if (recordings.length === 0) return;
-        const sortedIds = [...recordingsList.querySelectorAll('li')].map(li => Number(li.dataset.id));
+        const sortedIds = getSortedIds();
+        if (sortedIds.length === 0) return;
         const currentIndex = sortedIds.indexOf(currentlyPlayingId);
         if (currentIndex > 0) {
             playRecording(sortedIds[currentIndex - 1]);
@@ -149,7 +146,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderRecordings() {
-        const sortedRecordings = [...recordings].sort((a, b) => settings.sortDesc ? b.id - a.id : a.id - b.id);
+        // La ordenación se aplica aquí, usando el array de datos como fuente de verdad
+        const sortedRecordings = [...recordings].sort((a, b) => {
+            if (settings.sortDesc) return b.id - a.id;
+            return 0; // Si no está activo, mantiene el orden manual
+        });
+
         recordingsList.innerHTML = '';
         sortedRecordings.forEach(rec => {
             const isPlaying = rec.id === currentlyPlayingId && !audioPlayer.paused;
@@ -196,6 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const li = e.target.closest('li[data-id]');
         if (!li) return;
         const id = Number(li.dataset.id);
+
         if (e.target.matches('.play-pause-btn')) handlePlayPause(id);
         if (e.target.matches('.stop-btn')) handleStop();
         if (e.target.matches('.rewind-btn')) handleRewind();
@@ -219,12 +222,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { if (statusP) statusP.textContent = 'Error al transcribir.';
         } finally { renderRecordings(); }
     }
+
     async function handleCopy(id, button) {
         const recording = recordings.find(r => r.id === id);
         await navigator.clipboard.writeText(recording.transcript);
         button.textContent = '¡Copiado!';
         setTimeout(() => { button.textContent = 'Copiar'; }, 2000);
     }
+
     function handleSeek(e, id) {
         const recording = recordings.find(r => r.id === id);
         if (currentlyPlayingId !== id) playRecording(id);
@@ -234,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
         audioPlayer.currentTime = (clickX / width) * recording.duration;
     }
 
-    // --- 7. LÓGICA DE REORDENAMIENTO, ATRIBUTOS, CONFIGURACIÓN ---
+    // --- 7. LÓGICA DE REORDENAMIENTO Y ORDENACIÓN (CON CORRECCIÓN) ---
     recordingsList.addEventListener('dragstart', (e) => {
         const li = e.target.closest('li[data-id]');
         if (li) { draggedItemId = Number(li.dataset.id); e.target.classList.add('dragging'); }
@@ -250,8 +255,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     recordingsList.addEventListener('drop', () => {
+        // CORRECCIÓN CLAVE: Actualizamos el array de datos para que coincida con el DOM
         const newOrderIds = [...recordingsList.querySelectorAll('li[data-id]')].map(li => Number(li.dataset.id));
         recordings.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+
+        // Desactivamos la ordenación automática al reordenar manualmente
         sortToggle.checked = false;
         settings.sortDesc = false;
         saveSettings();
@@ -268,9 +276,13 @@ document.addEventListener('DOMContentLoaded', () => {
     sortToggle.addEventListener('change', e => {
         settings.sortDesc = e.target.checked;
         saveSettings();
-        renderRecordings();
+        renderRecordings(); // Vuelve a renderizar con el nuevo orden
     });
+    function getSortedIds() {
+        return [...recordingsList.querySelectorAll('li')].map(li => Number(li.dataset.id));
+    }
 
+    // --- 8. ATRIBUTOS DE TECLADO Y CONFIGURACIÓN ---
     function initShortcuts() {
         shortcutList.innerHTML = '';
         Object.entries(shortcutActions).forEach(([action, label]) => {
@@ -322,11 +334,11 @@ document.addEventListener('DOMContentLoaded', () => {
     rewindControl.addEventListener('change', e => { settings.rewindSeconds = parseInt(e.target.value, 10) || 5; saveSettings(); });
     resetShortcutsButton.addEventListener('click', () => { if (confirm('¿Resetear toda la configuración?')) { localStorage.removeItem('playerSettings'); loadSettings(); initShortcuts(); } });
 
-    // --- 8. EVENTOS DEL MOTOR DE AUDIO Y BOTONES DE LIMPIEZA ---
+    // --- 9. EVENTOS DEL MOTOR DE AUDIO Y BOTONES DE LIMPIEZA ---
     audioPlayer.addEventListener('play', () => renderRecordings());
     audioPlayer.addEventListener('pause', () => renderRecordings());
     audioPlayer.addEventListener('ended', () => {
-        const sortedIds = [...recordingsList.querySelectorAll('li')].map(li => Number(li.dataset.id));
+        const sortedIds = getSortedIds();
         const currentIndex = sortedIds.indexOf(currentlyPlayingId);
         currentlyPlayingId = null;
         if (settings.repeat === 'one' && currentIndex !== -1) { playRecording(sortedIds[currentIndex]); } 
@@ -351,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clearAllButton.addEventListener('click', () => { if (recordings.length > 0 && confirm('¿Borrar TODAS las grabaciones?')) { recordings = []; renderRecordings(); } });
     clearTranscriptsButton.addEventListener('click', () => { recordings.forEach(rec => rec.transcript = null); renderRecordings(); });
 
-    // --- 9. INICIALIZACIÓN ---
+    // --- 10. INICIALIZACIÓN ---
     function init() {
         loadSettings();
         initShortcuts();
